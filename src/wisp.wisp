@@ -67,8 +67,9 @@
 
 (defn parse-params
   [params]
-  (let [options (-> commander
+  (let [options (-> (.-program commander)
                     (.version version)
+                    (.arguments "[args...]")
                     (.usage "[options] <file ...>")
                     (.option "-r, --run"
                              "compile and execute the file (same as wisp path/to/file.wisp)")
