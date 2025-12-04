@@ -85,10 +85,18 @@ node-engine: ./engine/node.js
 
 browser-engine: ./engine/browser.js
 
-dist/wisp.js: engine/browser.js $(WISP) $(BROWSERIFY) browserify.wisp core recompile
+dist/wisp.js: engine/browser.js $(WISP) $(BROWSERIFY) browserify.wisp core wisp repl node-engine
 	@mkdir -p dist
 	$(WISP_CURRENT) browserify.wisp > dist/wisp.js
 
 dist/wisp.min.js: dist/wisp.js $(MINIFY)
 	@mkdir -p dist
 	$(MINIFY) dist/wisp.js > dist/wisp.min.js
+
+jsc_bundle.js: src/jsc_bundle.wisp
+
+dist/wisp_jsc.js: jsc_bundle.js $(WISP) $(BROWSERIFY) build_jsc_bundle.wisp core
+	@mkdir -p dist
+	$(WISP_CURRENT) build_jsc_bundle.wisp > dist/wisp_jsc.js
+
+bundle: dist/wisp_jsc.js
