@@ -8,6 +8,7 @@ let log: @convention(block) () -> Void = {
     let msg = args?.compactMap { ($0 as? JSValue)?.toString() }.joined(separator: " ") ?? ""
     print(msg)
 }
+
 let console = JSValue(newObjectIn: context)
 console?.setObject(unsafeBitCast(log, to: AnyObject.self), forKeyedSubscript: "log" as NSString)
 console?.setObject(unsafeBitCast(log, to: AnyObject.self), forKeyedSubscript: "error" as NSString)
