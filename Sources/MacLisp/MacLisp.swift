@@ -4,6 +4,11 @@ import Foundation
 public class MacLisp {
     private let context: JSContext
     private let wispCompile: JSValue
+    private var loadedAPIs: Set<NativeAPI> = []
+    
+    public enum NativeAPI: String, CaseIterable {
+        case FileManager
+    }
     
     public enum Error: Swift.Error, LocalizedError {
         case runtimeNotFound
@@ -11,6 +16,7 @@ public class MacLisp {
         case compilationFailed(String)
         case evaluationFailed(String)
         case noCodeGenerated
+        case unknownAPI(String)
         
         public var errorDescription: String? {
             switch self {
@@ -24,6 +30,8 @@ public class MacLisp {
                 return "Evaluation error: \(msg)"
             case .noCodeGenerated:
                 return "Compilation produced no output"
+            case .unknownAPI(let name):
+                return "Unknown native API: \(name)"
             }
         }
     }
@@ -58,7 +66,37 @@ public class MacLisp {
         self.wispCompile = compile
         
         Self.setupWispEnvironment(context)
+        setupRequireHook()
     }
+    
+    // MARK: - Native API Loading
+    
+    @discardableResult
+    public func loadAPI(_ api: NativeAPI) -> JSValue {
+        if loadedAPIs.contains(api) {
+            return context.objectForKeyedSubscript("__maclisp_apis")!
+                .objectForKeyedSubscript(api.rawValue)!
+        }
+        
+        let jsValue: JSValue
+        switch api {
+        case .FileManager:
+            jsValue = FileManagerAPI.install(in: context)
+        }
+        
+        // Store in __maclisp_apis cache
+        let apis = context.objectForKeyedSubscript("__maclisp_apis")!
+        apis.setObject(jsValue, forKeyedSubscript: api.rawValue as NSString)
+        
+        loadedAPIs.insert(api)
+        return jsValue
+    }
+    
+    public var availableAPIs: [NativeAPI] {
+        NativeAPI.allCases
+    }
+    
+    // MARK: - Compilation & Evaluation
     
     public func compile(source: String, uri: String = "<repl>") throws -> String {
         let result = wispCompile.call(withArguments: [source, ["source-uri": uri]])
@@ -125,7 +163,46 @@ public class MacLisp {
         for (var key in string) { this[key] = string[key]; }
         
         var exports = {};
+        var __maclisp_apis = {};
         """
         context.evaluateScript(setupScript)
     }
+    
+    private func setupRequireHook() {
+        // Swift callback for loading native APIs
+        let requireNative: @convention(block) (String) -> JSValue? = { [weak self] name in
+            guard let self = self else { return nil }
+            guard let api = NativeAPI(rawValue: name) else {
+                print("Unknown native API: \(name)")
+                return nil
+            }
+            return self.loadAPI(api)
+        }
+        
+        context.setObject(unsafeBitCast(requireNative, to: AnyObject.self),
+                          forKeyedSubscript: "__maclisp_require" as NSString)
+        
+        // Override require to intercept maclisp/* imports
+        let requireHook = """
+        (function() {
+            var _originalRequire = typeof require !== 'undefined' ? require : null;
+            require = function(name) {
+                if (typeof name === 'string' && name.indexOf('maclisp/') === 0) {
+                    var apiName = name.substring(8);
+                    var api = __maclisp_require(apiName);
+                    if (!api) {
+                        throw new Error('Unknown native API: ' + apiName);
+                    }
+                    return api;
+                }
+                if (_originalRequire) {
+                    return _originalRequire(name);
+                }
+                throw new Error('require is not available for: ' + name);
+            };
+        })();
+        """
+        context.evaluateScript(requireHook)
+    }
 }
+
