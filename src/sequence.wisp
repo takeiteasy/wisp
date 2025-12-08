@@ -142,7 +142,7 @@
   ([start end]      (range start end 1))
   ([start end step] (if (< step 0)
                       (.map (range (- start) (- end) (- step)) #(- %))
-                      (Array.from {:length (-> (+ end step) (- start 1) (/ step))}
+                      (Array.from {:length (/ (- (+ end step) start 1) step)}
                                   (fn [_ i] (+ start (* i step)))))))
 
 (defn mapv
@@ -216,10 +216,10 @@
   "Returns true if list is empty"
   [sequence]
   (let [it (seq sequence)]
-    (identical? 0 (if-not (lazy-seq? it)
-                    (count it)
+    (identical? 0 (if (lazy-seq? it)
                     (do (first it)             ; forcing evaluation
-                        (.-length it))))))
+                        (.-length it))
+                    (count it)))))
 
 (defn first
   "Return first item in a list"
@@ -284,7 +284,7 @@
                     (list? sequence) (apply list (butlast (vec sequence)))
                     (lazy-seq? sequence) (butlast (lazy-seq-value sequence))
                     :else (butlast (seq sequence)))]
-    (if-not (empty? items) items)))
+    (if (empty? items) nil items)))
 
 (defn take
   "Returns a sequence of the first `n` items, or all items if
@@ -357,9 +357,9 @@
   (reduce (fn [result item] (cons item result)) sequence items))
 
 (defn- ensure-dictionary [x]
-  (if-not (vector? x)
-    x
-    (dictionary (first x) (second x))))
+  (if (vector? x)
+    (dictionary (first x) (second x))
+    x))
 
 (defn conj
   [sequence & items]
@@ -432,7 +432,7 @@
 
 (defn seq* [sequence]
   (let [it (seq sequence)]
-    (if-not (empty? it) it)))
+    (if (empty? it) nil it)))
 
 (defn seq? [sequence]
   (or (list? sequence)
@@ -440,7 +440,7 @@
 
 (defn- iterator->lseq [iterator]
   (unfold #(let [x (.next %)]
-             (if-not (.-done x) [(.-value x) %]))
+             (if (.-done x) nil [(.-value x) %]))
           iterator))
 
 (defn vec
@@ -499,7 +499,7 @@
   (some #{:fred} coll)"
   [pred coll]
   (loop [items (seq coll)]
-    (if-not (empty? items)
+    (if (empty? items) nil
       (or (pred (first items)) (recur (rest items))))))
 
 
@@ -603,7 +603,8 @@
 (defn cycle
   "Returns a lazy (infinite!) sequence of repetitions of the items in coll."
   [coll]
-  (lazy-seq (if-not (empty? coll)
+  (lazy-seq (if (empty? coll)
+              nil
               (concat coll (cycle coll)))))
 
 (defn infinite-range
@@ -612,7 +613,8 @@
   ([n step] (iterate #(+ % step) n)))
 
 (defn lazy-map [f & sequences]
-  (unfold #(if-not (some empty? %)
+  (unfold #(if (some empty? %)
+             nil
              [(apply f (mapv first %)) (mapv rest %)])
           sequences))
 
@@ -624,7 +626,8 @@
           (seq sequence)))
 
 (defn lazy-concat [& sequences]
-  (if-not (empty? sequences)
+  (if (empty? sequences)
+    nil
     ((fn iter [xs]
        (lazy-seq (if (empty? xs)
                    (apply lazy-concat (rest sequences))

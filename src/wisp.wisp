@@ -67,7 +67,7 @@
 
 (defn parse-params
   [params]
-  (let [options (-> (.-program commander)
+  (let [program (-> (new commander.Command)
                     (.version version)
                     (.arguments "[args...]")
                     (.usage "[options] <file ...>")
@@ -87,7 +87,9 @@
                              "uri input will be associated with in source maps")
                     (.option "--output-uri <uri>"
                              "uri output will be associated with in source maps")
-                    (.parse params))]
+                    (.parse params))
+        options (.opts program)]
+    (set! (.-args options) (.-args program))
     (conj {:no-map (not (:map options))}
           options)))
 

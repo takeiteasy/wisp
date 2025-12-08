@@ -1,0 +1,16 @@
+--- node_modules/wisp/wisp.js.bak	2025-12-08 13:06:58
++++ node_modules/wisp/wisp.js	2025-12-08 13:07:39
+@@ -82,9 +82,12 @@
+ void 0;
+ var parseParams = exports.parseParams = function parseParams(params) {
+         return function () {
+-            var optionsø1 = commander.version(version).usage('[options] <file ...>').option('-r, --run', 'compile and execute the file (same as wisp path/to/file.wisp)').option('-c, --compile', 'compile given file and prints to stdout').option('-i, --interactive', 'run an interactive wisp REPL (same as wisp with no params)').option('--print <format>', 'use custom print output `expansion`,`forms`, `ast`, `js-ast` or (default) `code`', function (x, _) {
++            var program = new commander.Command();
++            program.version(version).usage('[options] <file ...>').option('-r, --run', 'compile and execute the file (same as wisp path/to/file.wisp)').option('-c, --compile', 'compile given file and prints to stdout').option('-i, --interactive', 'run an interactive wisp REPL (same as wisp with no params)').option('--print <format>', 'use custom print output `expansion`,`forms`, `ast`, `js-ast` or (default) `code`', function (x, _) {
+                     return '' + x;
+                 }, 'code').option('--no-map', 'disable source map generation').option('--source-uri <uri>', 'uri input will be associated with in source maps').option('--output-uri <uri>', 'uri output will be associated with in source maps').parse(params);
++            var optionsø1 = program.opts();
++            optionsø1.args = program.args;
+             return conj({ 'no-map': !(optionsø1 || 0)['map'] }, optionsø1);
+         }.call(this);
+     };

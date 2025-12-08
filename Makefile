@@ -95,8 +95,9 @@ dist/wisp.min.js: dist/wisp.js $(MINIFY)
 
 jsc_bundle.js: src/jsc_bundle.wisp
 
-dist/wisp_jsc.js: jsc_bundle.js $(WISP) $(BROWSERIFY) build_jsc_bundle.wisp core
+dist/wisp_jsc.js: jsc_bundle.js $(WISP) $(BROWSERIFY) build_jsc_bundle.wisp node
 	@mkdir -p dist
 	$(WISP_CURRENT) build_jsc_bundle.wisp > dist/wisp_jsc.js
 
 bundle: dist/wisp_jsc.js
+	cp dist/wisp_jsc.js ../Sources/MacLisp/Resources/wisp_jsc.js
