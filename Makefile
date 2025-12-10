@@ -100,4 +100,4 @@ dist/wisp_jsc.js: jsc_bundle.js $(WISP) $(BROWSERIFY) build_jsc_bundle.wisp node
 	$(WISP_CURRENT) build_jsc_bundle.wisp > dist/wisp_jsc.js
 
 bundle: dist/wisp_jsc.js
-	cp dist/wisp_jsc.js ../Sources/MacLisp/Resources/wisp_jsc.js
+	cp dist/wisp_jsc.js ../Sources/AppleLisp/Resources/wisp_jsc.js
