@@ -79,8 +79,7 @@
                              "run an interactive wisp REPL (same as wisp with no params)")
                     (.option "--print <format>"
                              "use custom print output `expansion`,`forms`, `ast`, `js-ast` or (default) `code`"
-                             (fn [x _] (str x))
-                             "code")
+                             (fn [x _] (str x)))
                     (.option "--no-map"
                              "disable source map generation")
                     (.option "--source-uri <uri>"
@@ -98,8 +97,12 @@
   (let [options (parse-params process.argv)
         path (aget options.args 0)]
     (cond options.run (run path)
+          options.compile (if path
+                            (compile-file path options)
+                            (compile-stdin options))
+          path (if (:print options)
+                 (compile-file path options)
+                 (run path))
           (not process.stdin.isTTY) (compile-stdin options)
           options.interactive (start-repl)
-          options.compile (compile-file path options)
-          path (run path)
           :else (start-repl))))
