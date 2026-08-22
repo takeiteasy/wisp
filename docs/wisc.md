@@ -17,6 +17,8 @@ cmake, a C compiler, and git submodules.
     make wisc                     # bundle + quickjs + C frontend -> build/wisc
 
 `make wisc-check` runs a small smoke suite against the binary.
+`make wisc-install` installs the binary to `~/.local/bin/wisc`
+(override with `PREFIX=…`, stage with `DESTDIR=…`).
 `make wisc-clean` removes build artifacts (bundle and objects only).
 
 ## Usage

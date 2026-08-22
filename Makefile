@@ -164,3 +164,11 @@ wisc-check: $(WISC)
 
 wisc-clean:
 	rm -rf $(BUILD_DIR) dist/wisp_qjs.js
+
+PREFIX ?= $(HOME)/.local
+
+wisc-install: $(WISC)
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	install -m 0755 $(WISC) $(DESTDIR)$(PREFIX)/bin/wisc
+
+.PHONY: wisc wisc-check wisc-clean wisc-install
