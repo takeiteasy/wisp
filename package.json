@@ -37,6 +37,11 @@
   "devDependencies": {
     "browserify": "16.5.0"
   },
+  "overrides": {
+    "wisp": {
+      "commander": "~2.20.3"
+    }
+  },
   "engines": {
     "node": ">=0.4.0"
   },
