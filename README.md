@@ -43,6 +43,13 @@ You can install _wisp_ locally via `npm` by doing:
 
     cat in.wisp | wisp > out.js
 
+# wisc — native CLI (QuickJS)
+
+This repo also builds `wisc`, a self-contained wisp REPL/runner binary
+backed by [quickjs-ng](https://github.com/quickjs-ng/quickjs) — no node
+required at runtime. See [docs/wisc.md](docs/wisc.md).
+
+    git submodule update --init && npm install && make && make wisc
 
 # Language Essentials
 

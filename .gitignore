@@ -6,4 +6,5 @@ node_modules
 workspace
 npm-debug.log
 /dist/
+/build/
 package-lock.json
