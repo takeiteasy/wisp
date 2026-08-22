@@ -479,7 +479,8 @@
   "Takes a function of no args, presumably with side effects, and
   returns vector of given `n` length with calls to it"
   [n f]
-  (Array.from {:length n} f))
+  ;; wrap so Array.from's (item, index) callback args never reach f
+  (Array.from {:length n} (fn [] (f))))
 
 (defn repeat
   "Returns a vector of given `n` length with given `x`

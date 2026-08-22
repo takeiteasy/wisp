@@ -485,6 +485,10 @@
 
 (is (= (repeatedly 5 #(* 6 7)) [42 42 42 42 42]))
 
+;; f must be called with zero args — Array.from would hand it (item, index)
+(is (= (repeatedly 3 (fn [x] x)) [nil nil nil])
+    "calls f with no arguments")
+
 (is (= (repeat 4 7)  [7 7 7 7]))
 (is (= (repeat 0 7)  []))
 (is (= (repeat -1 7) []))
