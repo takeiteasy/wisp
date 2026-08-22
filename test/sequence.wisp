@@ -402,6 +402,15 @@
 
 (is (= (reduce (fn [result v] (+ result v)) [5]) 5))
 
+;; variadic fns must only ever see (acc, x) — Array.prototype.reduce
+;; would otherwise hand (acc, x, index, array) to them
+(is (= (reduce + 0 [1 2 3 4 5]) 15)
+    "variadic fn with initial")
+(is (= (reduce + '(1 2 3 4 5)) 15)
+    "variadic fn with list & no initial")
+(is (= (reduce str "" [1 2 3]) "123")
+    "variadic string builder")
+
 
 (is (= (take 1 nil) '()))
 (is (= (take 1 '()) '()))

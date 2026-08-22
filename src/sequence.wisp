@@ -197,10 +197,11 @@
   [f & params]
   (let [has-initial (>= (count params) 2)
         initial     (if has-initial (first params))
-        sequence    (if has-initial (second params) (first params))]
+        sequence    (if has-initial (second params) (first params))
+        step        (fn [acc x] (f acc x))]
     (if has-initial
-      (.reduce (vec sequence) f initial)
-      (.reduce (vec sequence) f))))
+      (.reduce (vec sequence) step initial)
+      (.reduce (vec sequence) step))))
 
 (defn count
   "Returns number of elements in list"
