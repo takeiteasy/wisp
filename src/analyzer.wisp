@@ -14,50 +14,51 @@
             [wisp.expander :refer [macroexpand]]
             [wisp.string :refer [split join]]))
 
-(defn syntax-error
-  [message form]
-  (let [metadata (meta form)
-        line (:line (:start metadata))
-        uri (:uri metadata)
-        column (:column (:start metadata))
-        error (SyntaxError (str message "\n"
+(defun syntax-error
+  (message form)
+  (let* ((metadata (meta form))
+        (line (:line (:start metadata)))
+        (uri (:uri metadata))
+        (column (:column (:start metadata)))
+        (error (SyntaxError (str message "\n"
                                 "Form: " (pr-str form) "\n"
                                 "URI: " uri "\n"
                                 "Line: " line "\n"
-                                "Column: " column))]
-    (set! error.lineNumber line)
-    (set! error.line line)
-    (set! error.columnNumber column)
-    (set! error.column column)
-    (set! error.fileName uri)
-    (set! error.uri uri)
+                                "Column: " column))))
+    (setf error.lineNumber line)
+    (setf error.line line)
+    (setf error.columnNumber column)
+    (setf error.column column)
+    (setf error.fileName uri)
+    (setf error.uri uri)
     (throw error)))
 
 
-(defn analyze-keyword
+(defun analyze-keyword
+  (env form)
   "Example:
   (analyze-keyword {} :foo) => {:op :constant
                                 :form ':foo
                                 :env {}}"
-  [env form]
   {:op :constant
    :form form})
 
-(def **specials** {})
+(defvar **specials** {})
 
-(defn install-special!
-  [op analyzer]
-  (set! (get **specials** (name op)) analyzer))
+(defun install-special!
+  (op analyzer)
+  (setf (get **specials** (name op)) analyzer))
 
-(defn analyze-special
-  [analyzer env form]
-  (let [metadata (meta form)
-        ast (analyzer env form)]
+(defun analyze-special
+  (analyzer env form)
+  (let* ((metadata (meta form))
+        (ast (analyzer env form)))
     (conj {:start (:start metadata)
            :end (:end metadata)}
           ast)))
 
-(defn analyze-if
+(defun analyze-if
+  (env form)
   "Example:
   (analyze-if {} '(if monday? :yep :nope)) => {:op :if
                                                :form '(if monday? :yep :nope)
@@ -74,17 +75,16 @@
                                                            :form ':nope
                                                            :type :keyword
                                                            :env {}}}"
-  [env form]
-  (let [forms (rest form)
+  (let* ((forms (rest form))
         ;; Emacs-Lisp shape: the else TAIL (everything after the
         ;; consequent) is an implicit `progn`, not just a single form.
-        else-tail (drop 2 forms)
-        else-form (cond (empty? else-tail) nil
-                        (identical? (count else-tail) 1) (first else-tail)
-                        :else (cons 'progn else-tail))
-        test (analyze env (first forms))
-        consequent (analyze env (second forms))
-        alternate (analyze env else-form)]
+        (else-tail (drop 2 forms))
+        (else-form (cond ((empty? else-tail) nil)
+                        ((identical? (count else-tail) 1) (first else-tail))
+                        (else (cons 'progn else-tail))))
+        (test (analyze env (first forms)))
+        (consequent (analyze env (second forms)))
+        (alternate (analyze env else-form)))
     (if (< (count forms) 2)
       (syntax-error "Malformed if expression, too few operands" form))
     {:op :if
@@ -95,7 +95,8 @@
 
 (install-special! :if analyze-if)
 
-(defn analyze-throw
+(defun analyze-throw
+  (env form)
   "Example:
   (analyze-throw {} '(throw (Error :boom))) => {:op :throw
                                                 :form '(throw (Error :boom))
@@ -108,43 +109,42 @@
                                                                   :type :keyword
                                                                   :form ':boom
                                                                   :env {}}]}}"
-  [env form]
-  (let [expression (analyze env (second form))]
+  (let* ((expression (analyze env (second form))))
     {:op :throw
      :form form
      :throw expression}))
 
 (install-special! :throw analyze-throw)
 
-(defn analyze-try
-  [env form]
-  (let [forms (vec (rest form))
+(defun analyze-try
+  (env form)
+  (let* ((forms (vec (rest form)))
 
         ;; Finally
-        tail (last forms)
-        finalizer-form (if (and (list? tail)
+        (tail (last forms))
+        (finalizer-form (if (and (list? tail)
                                 (= 'finally (first tail)))
-                         (rest tail))
-        finalizer (if finalizer-form
-                    (analyze-block env finalizer-form))
+                         (rest tail)))
+        (finalizer (if finalizer-form
+                    (analyze-block env finalizer-form)))
 
         ;; catch
-        body-form (if finalizer
+        (body-form (if finalizer
                     (butlast forms)
-                    forms)
+                    forms))
 
-        tail (last body-form)
-        handler-form (if (and (list? tail)
+        (tail (last body-form))
+        (handler-form (if (and (list? tail)
                               (= 'catch (first tail)))
-                       (rest tail))
-        handler (if handler-form
+                       (rest tail)))
+        (handler (if handler-form
                   (conj {:name (analyze env (first handler-form))}
-                        (analyze-block env (rest handler-form))))
+                        (analyze-block env (rest handler-form)))))
 
         ;; Try
-        body (if handler-form
+        (body (if handler-form
                (analyze-block (sub-env env) (butlast body-form))
-               (analyze-block (sub-env env) body-form))]
+               (analyze-block (sub-env env) body-form))))
     {:op :try
      :form form
      :body body
@@ -153,40 +153,40 @@
 
 (install-special! :try analyze-try)
 
-(defn analyze-set!
-  [env form]
-  (let [body (rest form)
-        left (first body)
-        right (second body)
-        target (cond (symbol? left) (analyze-symbol env left)
-                     (list? left) (analyze-list env left)
-                     :else left)
-        value (analyze env right)]
+(defun analyze-set!
+  (env form)
+  (let* ((body (rest form))
+        (left (first body))
+        (right (second body))
+        (target (cond ((symbol? left) (analyze-symbol env left))
+                     ((list? left) (analyze-list env left))
+                     (else left)))
+        (value (analyze env right)))
     {:op :set!
      :target target
      :value value
      :form form}))
 (install-special! :set! analyze-set!)
 
-(defn analyze-new
-  [env form]
-  (let [body (rest form)
-        constructor (analyze env (first body))
-        params (vec (map #(analyze env %) (rest body)))]
+(defun analyze-new
+  (env form)
+  (let* ((body (rest form))
+        (constructor (analyze env (first body)))
+        (params (vec (map (lambda (%) (analyze env %)) (rest body)))))
     {:op :new
      :constructor constructor
      :form form
      :params params}))
 (install-special! :new analyze-new)
 
-(defn analyze-aget
-  [env form]
-  (let [body (rest form)
-        target (analyze env (first body))
-        attribute (second body)
-        field (and (quote? attribute)
+(defun analyze-aget
+  (env form)
+  (let* ((body (rest form))
+        (target (analyze env (first body)))
+        (attribute (second body))
+        (field (and (quote? attribute)
                    (symbol? (second attribute))
-                   (second attribute))]
+                   (second attribute))))
     (if (nil? attribute)
       (syntax-error "Malformed aget expression expected (aget object member)"
                     form)
@@ -202,31 +202,31 @@
                    (analyze env attribute))})))
 (install-special! :aget analyze-aget)
 
-(defn parse-def
-  [id & args]
-  (cond (empty? args) {:id id}
-        (identical? (count args) 1) {:id id :init (first args)}
-        :else {:id id :doc (first args) :init (second args)}))
+(defun parse-def
+  (id &rest args)
+  (cond ((empty? args) {:id id})
+        ((identical? (count args) 1) {:id id :init (first args)})
+        (else {:id id :doc (first args) :init (second args)})))
 
-(defn analyze-def
+(defun analyze-def
+  (env form)
   "Backs `defvar`/`defvar-`/`defconst`/`defconst-`. Privacy (whether the
   binding lands on `exports`) is decided by which of those four head
   symbols was used -- a trailing `-` means private -- rather than by
   `^:private` reader metadata, which new-syntax drops entirely."
-  [env form]
-  (let [op (name (first form))
-        private (or (identical? op "defvar-")
-                    (identical? op "defconst-"))
-        params (apply parse-def (vec (rest form)))
-        id (:id params)
-        metadata (meta id)
+  (let* ((op (name (first form)))
+        (private (or (identical? op "defvar-")
+                    (identical? op "defconst-")))
+        (params (apply parse-def (vec (rest form))))
+        (id (:id params))
+        (metadata (meta id))
 
-        binding (analyze-special analyze-declaration env id)
+        (binding (analyze-special analyze-declaration env id))
 
-        init (analyze env (:init params))
+        (init (analyze env (:init params)))
 
-        doc (or (:doc params)
-                (:doc metadata))]
+        (doc (or (:doc params)
+                (:doc metadata))))
     {:op :def
      :doc doc
      :id binding
@@ -239,24 +239,24 @@
 (install-special! :defconst analyze-def)
 (install-special! :defconst- analyze-def)
 
-(defn analyze-do
-  [env form]
-  (let [expressions (rest form)
-        body (analyze-block env expressions)]
+(defun analyze-do
+  (env form)
+  (let* ((expressions (rest form))
+        (body (analyze-block env expressions)))
     (conj body {:op :do
                 :form form})))
 (install-special! :progn analyze-do)
 
-(defn analyze-symbol
+(defun analyze-symbol
+  (env form)
   "Symbol analyzer also does syntax desugaring for the symbols
   like foo.bar.baz producing (aget foo 'bar.baz) form. This enables
   renaming of shadowed symbols."
-  [env form]
-  (let [forms (split (name form) \.)
-        metadata (meta form)
-        start (:start metadata)
-        end (:end metadata)
-        expansion (if (> (count forms) 1)
+  (let* ((forms (split (name form) \.))
+        (metadata (meta form))
+        (start (:start metadata))
+        (end (:end metadata))
+        (expansion (if (> (count forms) 1)
                    (list 'aget
                          (with-meta (symbol (first forms))
                            (conj metadata
@@ -268,13 +268,13 @@
                                  (conj metadata
                                        {:end end
                                         :start {:line (:line start)
-                                                :column (+ 1 (:column start) (count (first forms)))}})))))]
+                                                :column (+ 1 (:column start) (count (first forms)))}})))))))
     (if expansion
       (analyze env (with-meta expansion (meta form)))
       (analyze-special analyze-identifier env form))))
 
-(defn analyze-identifier
-  [env form]
+(defun analyze-identifier
+  (env form)
   {:op :var
    :type :identifier
    :form form
@@ -282,8 +282,8 @@
    :end (:end (meta form))
    :binding (resolve-binding env form)})
 
-(defn unresolved-binding
-  [env form]
+(defun unresolved-binding
+  (env form)
   {:op :unresolved-binding
    :type :unresolved-binding
    :identifier {:type :identifier
@@ -292,22 +292,22 @@
    :start (:start (meta form))
    :end (:end (meta form))})
 
-(defn resolve-binding
-  [env form]
+(defun resolve-binding
+  (env form)
   (or (get (:locals env) (name form))
       (get (:enclosed env) (name form))
       (unresolved-binding env form)))
 
-(defn analyze-shadow
-  [env id]
-  (let [binding (resolve-binding env id)]
+(defun analyze-shadow
+  (env id)
+  (let* ((binding (resolve-binding env id)))
     {:depth (inc (or (:depth binding) 0))
      :shadow binding}))
 
-(defn analyze-binding
-  [env form]
-  (let [id (first form)
-        body (second form)]
+(defun analyze-binding
+  (env form)
+  (let* ((id (first form))
+        (body (second form)))
     (conj (analyze-shadow env id)
           {:op :binding
            :type :binding
@@ -315,8 +315,8 @@
            :init (analyze env body)
            :form form})))
 
-(defn analyze-declaration
-  [env form]
+(defun analyze-declaration
+  (env form)
   (assert (not (or (namespace form)
                    (< 1 (count (split \. (str form)))))))
   (conj (analyze-shadow env form)
@@ -326,8 +326,8 @@
          :id form
          :form form}))
 
-(defn analyze-param
-  [env form]
+(defun analyze-param
+  (env form)
   (conj (analyze-shadow env form)
         {:op :param
          :type :parameter
@@ -336,20 +336,20 @@
          :start (:start (meta form))
          :end (:end (meta form))}))
 
-(defn with-binding
+(defun with-binding
+  (env form)
   "Returns enhanced environment with additional binding added
   to the :bindings and :scope"
-  [env form]
   (conj env {:locals (assoc (:locals env) (name (:id form)) form)
              :bindings (conj (:bindings env) form)}))
 
-(defn with-param
-  [env form]
+(defun with-param
+  (env form)
   (conj (with-binding env form)
         {:params (conj (:params env) form)}))
 
-(defn sub-env
-  [env]
+(defun sub-env
+  (env)
   {:enclosed (conj {}
                    (:enclosed env)
                    (:locals env))
@@ -358,30 +358,30 @@
    :params (or (:params env) [])})
 
 
-(defn analyze-let*
+(defun analyze-let*
+  (env form is-loop)
   "Takes let form and enhances it's metadata via analyzed
   info"
-  [env form is-loop]
-  (let [expressions (rest form)
-        bindings (first expressions)
-        body (rest expressions)
+  (let* ((expressions (rest form))
+        (bindings (first expressions))
+        (body (rest expressions))
 
-        valid-bindings? (and (vector? bindings)
-                             (even? (count bindings)))
+        (valid-bindings? (and (vector? bindings)
+                             (even? (count bindings))))
 
-        _ (assert valid-bindings?
-                  "bindings must be vector of even number of elements")
+        (_ (assert valid-bindings?
+                  "bindings must be vector of even number of elements"))
 
-        scope (reduce #(with-binding %1 (analyze-binding %1 %2))
+        (scope (reduce (lambda (%1 %2) (with-binding %1 (analyze-binding %1 %2)))
                       (sub-env env)
-                      (partition 2 bindings))
+                      (partition 2 bindings)))
 
-        bindings (:bindings scope)
+        (bindings (:bindings scope))
 
-        expressions (analyze-block (if is-loop
+        (expressions (analyze-block (if is-loop
                                      (conj scope {:params bindings})
                                      scope)
-                                   body)]
+                                   body)))
 
     {:op :let
      :form form
@@ -391,8 +391,8 @@
      :statements (:statements expressions)
      :result (:result expressions)}))
 
-(defn analyze-let
-  [env form]
+(defun analyze-let
+  (env form)
   (analyze-let* env form false))
 ;; `let**` is the post-macroexpansion internal binding form (flat vector of
 ;; name/init pairs, sequential) -- analogous to `fn*`/`loop*`. New-syntax's
@@ -402,16 +402,16 @@
 ;; output.
 (install-special! :let** analyze-let)
 
-(defn analyze-loop
-  [env form]
+(defun analyze-loop
+  (env form)
   (conj (analyze-let* env form true) {:op :loop}))
 (install-special! :loop* analyze-loop)
 
 
-(defn analyze-recur
-  [env form]
-  (let [params (:params env)
-        forms (vec (map #(analyze env %) (rest form)))]
+(defun analyze-recur
+  (env form)
+  (let* ((params (:params env))
+        (forms (vec (map (lambda (%) (analyze env %)) (rest form)))))
 
     (if (= (count params)
            (count forms))
@@ -422,26 +422,26 @@
                     form))))
 (install-special! :recur analyze-recur)
 
-(defn analyze-quoted-list
-  [form]
+(defun analyze-quoted-list
+  (form)
   {:op :list
    :items (map analyze-quoted (vec form))
    :form form
    :start (:start (meta form))
    :end (:end (meta form))})
 
-(defn analyze-quoted-vector
-  [form]
+(defun analyze-quoted-vector
+  (form)
   {:op :vector
    :items (map analyze-quoted form)
    :form form
    :start (:start (meta form))
    :end (:end (meta form))})
 
-(defn analyze-quoted-dictionary
-  [form]
-  (let [names (vec (map analyze-quoted (keys form)))
-        values (vec (map analyze-quoted (vals form)))]
+(defun analyze-quoted-dictionary
+  (form)
+  (let* ((names (vec (map analyze-quoted (keys form))))
+        (values (vec (map analyze-quoted (vals form)))))
     {:op :dictionary
      :form form
      :keys names
@@ -449,54 +449,55 @@
      :start (:start (meta form))
      :end (:end (meta form))}))
 
-(defn analyze-quoted-symbol
-  [form]
+(defun analyze-quoted-symbol
+  (form)
   {:op :symbol
    :name (name form)
    :namespace (namespace form)
    :form form})
 
-(defn analyze-quoted-keyword
- [form]
+(defun analyze-quoted-keyword
+ (form)
   {:op :keyword
    :name (name form)
    :namespace (namespace form)
    :form form})
 
-(defn analyze-quoted
-  [form]
-  (cond (symbol? form) (analyze-quoted-symbol form)
-        (keyword? form) (analyze-quoted-keyword form)
-        (list? form) (analyze-quoted-list form)
-        (vector? form) (analyze-quoted-vector form)
-        (dictionary? form) (analyze-quoted-dictionary form)
-        :else {:op :constant
-               :form form}))
+(defun analyze-quoted
+  (form)
+  (cond ((symbol? form) (analyze-quoted-symbol form))
+        ((keyword? form) (analyze-quoted-keyword form))
+        ((list? form) (analyze-quoted-list form))
+        ((vector? form) (analyze-quoted-vector form))
+        ((dictionary? form) (analyze-quoted-dictionary form))
+        (else {:op :constant
+               :form form})))
 
-(defn analyze-quote
+(defun analyze-quote
+  (env form)
   "Examples:
    (analyze-quote {} '(quote foo)) => {:op :constant
                                        :form 'foo
                                        :env env}"
-  [env form]
   (analyze-quoted (second form)))
 (install-special! :quote analyze-quote)
 
-(defn analyze-statement
-  [env form]
-  (let [statements (or (:statements env) [])
-        bindings (or (:bindings env) [])
-        statement (analyze (conj env {:statements nil}) form)
-        op (:op statement)
+(defun analyze-statement
+  (env form)
+  (let* ((statements (or (:statements env) []))
+        (bindings (or (:bindings env) []))
+        (statement (analyze (conj env {:statements nil}) form))
+        (op (:op statement))
 
-        defs (cond (= op :def) [(:var statement)]
+        (defs (cond ((= op :def) [(:var statement)])
                    ;; (= op :ns) (:requirement node)
-                   :else nil)]
+                   (else nil))))
 
     (conj env {:statements (conj statements statement)
                :bindings (concat bindings defs)})))
 
-(defn analyze-block
+(defun analyze-block
+  (env form)
   "Examples:
   (analyze-block {} '((foo bar))) => {:statements nil
                                       :result {:op :invoke
@@ -533,16 +534,16 @@
                                                          :form 'bar
                                                          :info nil
                                                          :env {}}]}"
-  [env form]
-  (let [body (if (> (count form) 1)
+  (let* ((body (if (> (count form) 1)
                (reduce analyze-statement
                        env
-                       (butlast form)))
-        result (analyze (or body env) (last form))]
+                       (butlast form))))
+        (result (analyze (or body env) (last form))))
     {:statements (:statements body)
      :result result}))
 
-(defn analyze-fn-method
+(defun analyze-fn-method
+  (env form)
   "
   {} -> '([x y] (+ x y)) -> {:env {}
                              :form '([x y] (+ x y))
@@ -571,30 +572,29 @@
                                                 :form 'y
                                                 :info nil
                                                 :tag nil}]}}"
-  [env form]
-  (let [signature (if (and (list? form)
+  (let* ((signature (if (and (list? form)
                            (vector? (first form)))
                     (first form)
-                    (syntax-error "Malformed fn overload form" form))
-        body (rest form)
+                    (syntax-error "Malformed fn overload form" form)))
+        (body (rest form))
         ;; If param signature contains & fn is variadic.
-        variadic (some #(= '& %) signature)
+        (variadic (some (lambda (%) (= '& %)) signature))
 
         ;; All named params of the fn.
-        params (if variadic
-                 (filter #(not (= '& %)) signature)
-                 signature)
+        (params (if variadic
+                 (filter (lambda (%) (not (= '& %))) signature)
+                 signature))
 
         ;; Number of parameters fixed parameters fn takes.
-        arity (if variadic
+        (arity (if variadic
                 (dec (count params))
-                (count params))
+                (count params)))
 
         ;; Analyze parameters in correspondence to environment
         ;; locals to identify binding shadowing.
-        scope (reduce #(with-param %1 (analyze-param %1 %2))
+        (scope (reduce (lambda (%1 %2) (with-param %1 (analyze-param %1 %2)))
                       (conj env {:params []})
-                      params)]
+                      params)))
     (conj (analyze-block scope body)
           {:op :overload
            :variadic variadic
@@ -603,42 +603,42 @@
            :form form})))
 
 
-(defn analyze-fn
-  [env form]
-  (let [forms (rest form)
+(defun analyze-fn
+  (env form)
+  (let* ((forms (rest form))
         ;; Normalize fn form so that it contains name
         ;; '(fn [x] x) -> '(fn nil [x] x)
-        forms (if (symbol? (first forms))
+        (forms (if (symbol? (first forms))
                 forms
-                (cons nil forms))
+                (cons nil forms)))
 
-        id (first forms)
-        binding (if id (analyze-special analyze-declaration env id))
+        (id (first forms))
+        (binding (if id (analyze-special analyze-declaration env id)))
 
-        body (rest forms)
+        (body (rest forms))
 
         ;; Make sure that fn definition is strucutered
         ;; in method overload style:
         ;; (fn a [x] y) -> (([x] y))
         ;; (fn a ([x] y)) -> (([x] y))
-        overloads (cond (vector? (first body)) (list body)
-                        (and (list? (first body))
-                             (vector? (first (first body)))) body
-                        :else (syntax-error (str "Malformed fn expression, "
+        (overloads (cond ((vector? (first body)) (list body))
+                        ((and (list? (first body))
+                             (vector? (first (first body)))) body)
+                        (else (syntax-error (str "Malformed fn expression, "
                                                  "parameter declaration ("
                                                  (pr-str (first body))
                                                  ") must be a vector")
-                                            form))
+                                            form))))
 
-        scope (if binding
+        (scope (if binding
                 (with-binding (sub-env env) binding)
-                (sub-env env))
+                (sub-env env)))
 
-        methods (map #(analyze-fn-method scope %)
-                     (vec overloads))
+        (methods (map (lambda (%) (analyze-fn-method scope %))
+                     (vec overloads)))
 
-        arity (apply max (map #(:arity %) methods))
-        variadic (some #(:variadic %) methods)]
+        (arity (apply max (map (lambda (%) (:arity %)) methods)))
+        (variadic (some (lambda (%) (:variadic %)) methods)))
     {:op :fn
      :type :function
      :id binding
@@ -647,11 +647,11 @@
      :form form}))
 (install-special! :fn* analyze-fn)
 
-(defn parse-references
+(defun parse-references
+  (forms)
   "Takes part of namespace definition and creates hash
   of reference forms"
-  [forms]
-  (reduce (fn [references form]
+  (reduce (lambda (references form)
             ;; If not a vector than it's not a reference
             ;; form that wisp understands so just skip it.
             (if (seq? form)
@@ -662,24 +662,24 @@
           {}
           forms))
 
-(defn parse-require
-  [form]
-  (let [;; require form may be either vector with id in the
+(defun parse-require
+  (form)
+  (let* (;; require form may be either vector with id in the
         ;; head or just an id symbol. normalizing to a vector
-        requirement (if (symbol? form) [form] (vec form))
-        id (first requirement)
+        (requirement (if (symbol? form) [form] (vec form)))
+        (id (first requirement))
         ;; bunch of directives may follow require form but they
         ;; all come in pairs. wisp supports following pairs:
         ;; :as foo
         ;; :refer [foo bar]
         ;; :rename {foo bar}
         ;; join these pairs in a hash for key based access.
-        params (apply dictionary (rest requirement))
-        renames (get params ':rename)
-        names (get params ':refer)
-        alias (get params ':as)
-        references (if (not (empty? names))
-                     (reduce (fn [refers reference]
+        (params (apply dictionary (rest requirement)))
+        (renames (get params ':rename))
+        (names (get params ':refer))
+        (alias (get params ':as))
+        (references (if (not (empty? names))
+                     (reduce (lambda (refers reference)
                       (conj refers
                             {:op :refer
                              :form reference
@@ -691,27 +691,27 @@
                                          (get renames (name reference)))
                              :ns id}))
                              []
-                             names))]
+                             names))))
     {:op :require
      :alias alias
      :ns id
      :refer references
      :form form}))
 
-(defn analyze-ns
-  [env form]
-  (let [forms (rest form)
-        name (first forms)
-        body (rest forms)
+(defun analyze-ns
+  (env form)
+  (let* ((forms (rest form))
+        (name (first forms))
+        (body (rest forms))
         ;; Optional docstring that follows name symbol
-        doc (if (string? (first body)) (first body))
+        (doc (if (string? (first body)) (first body)))
         ;; If second form is not a string than treat it
         ;; as regular reference form
-        references (parse-references (if doc
+        (references (parse-references (if doc
                                        (rest body)
-                                       body))
-        requirements (if (:require references)
-                       (map parse-require (:require references)))]
+                                       body)))
+        (requirements (if (:require references)
+                       (map parse-require (:require references)))))
     {:op :ns
      :name name
      :doc doc
@@ -721,64 +721,65 @@
 (install-special! :ns analyze-ns)
 
 
-(defn analyze-list
+(defun analyze-list
+  (env form)
   "Takes form of list type and performs a macroexpansions until
   fully expanded. If expansion is different from a given form then
   expanded form is handed back to analyzer. If form is special like
   def, fn, let... than associated is dispatched, otherwise form is
   analyzed as invoke expression."
-  [env form]
-  (let [expansion (macroexpand form env)
+  (let* ((expansion (macroexpand form env))
         ;; Special operators must be symbols and stored in the
         ;; **specials** hash by operator name.
-        operator (first form)
-        analyzer (and (symbol? operator)
-                      (get **specials** (name operator)))]
+        (operator (first form))
+        (analyzer (and (symbol? operator)
+                      (get **specials** (name operator)))))
     ;; If form is expanded pass it back to analyze since it may no
     ;; longer be a list. Otherwise either analyze as a special form
     ;; (if it's such) or as function invokation form.
-    (cond (not (identical? expansion form)) (analyze env expansion)
-          analyzer (analyze-special analyzer env expansion)
-          :else (analyze-invoke env expansion))))
+    (cond ((not (identical? expansion form)) (analyze env expansion))
+          (analyzer (analyze-special analyzer env expansion))
+          (else (analyze-invoke env expansion)))))
 
-(defn analyze-vector
-  [env form]
-  (let [items (vec (map #(analyze env %) form))]
+(defun analyze-vector
+  (env form)
+  (let* ((items (vec (map (lambda (%) (analyze env %)) form))))
     {:op :vector
      :form form
      :items items}))
 
-(defn analyze-dictionary
-  [env form]
-  (let [names (vec (map #(analyze env %) (keys form)))
-        values (vec (map #(analyze env %) (vals form)))]
+(defun analyze-dictionary
+  (env form)
+  (let* ((names (vec (map (lambda (%) (analyze env %)) (keys form))))
+        (values (vec (map (lambda (%) (analyze env %)) (vals form)))))
     {:op :dictionary
      :keys names
      :values values
      :form form}))
 
-(defn analyze-invoke
+(defun analyze-invoke
+  (env form)
   "Returns node of :invoke type, representing a function call. In
   addition to regular properties this node contains :callee mapped
   to a node that is being invoked and :params that is an vector of
   paramter expressions that :callee is invoked with."
-  [env form]
-  (let [callee (analyze env (first form))
-        params (vec (map #(analyze env %) (rest form)))]
+  (let* ((callee (analyze env (first form)))
+        (params (vec (map (lambda (%) (analyze env %)) (rest form)))))
     {:op :invoke
      :callee callee
      :params params
      :form form}))
 
-(defn analyze-constant
+(defun analyze-constant
+  (env form)
   "Returns a node representing a contstant value which is
   most certainly a primitive value literal this form cantains
   no extra information."
-  [env form]
   {:op :constant
    :form form})
 
-(defn analyze
+(defun analyze
+  (&rest args)
   "Takes a hash representing a given environment and `form` to be
   analyzed. Environment may contain following entries:
 
@@ -796,19 +797,18 @@
   :form - Given form.
 
   Based on :op node may contain different set of properties."
-  [& args]
   (if (identical? (count args) 1)
     (analyze {:locals {}
               :bindings []
               :top true} (first args))
-    (let [env (first args), form (second args)]
-      (cond (nil? form) (analyze-constant env form)
-            (symbol? form) (analyze-symbol env form)
-            (list? form) (if (empty? form)
+    (let* ((env (first args)) (form (second args)))
+      (cond ((nil? form) (analyze-constant env form))
+            ((symbol? form) (analyze-symbol env form))
+            ((list? form) (if (empty? form)
                            (analyze-quoted form)
-                           (analyze-list env form))
-            (dictionary? form) (analyze-dictionary env form)
-            (vector? form) (analyze-vector env form)
+                           (analyze-list env form)))
+            ((dictionary? form) (analyze-dictionary env form))
+            ((vector? form) (analyze-vector env form))
             ;(set? form) (analyze-set env form name)
-            (keyword? form) (analyze-keyword env form)
-            :else (analyze-constant env form)))))
+            ((keyword? form) (analyze-keyword env form))
+            (else (analyze-constant env form))))))
