@@ -277,7 +277,8 @@
 
 (defun expand-comment
   (&rest body)
-  "Ignores body, yields nil")
+  "Ignores body, yields nil"
+  nil)
 (install-macro! :comment expand-comment)
 
 (defun expand-thread-first
@@ -692,7 +693,7 @@
   (let* ((pairs (vec (map vec seq-exprs)))
         (iter (gensym :for-iter)) (coll (gensym :for-coll)) (parts (for-parts pairs)))
     (:body (reduce (lambda (%1 %2) (apply for-step %1 %2))
-                   {:iter iter, :coll coll, :body `(cons ,body-expr (,iter (rest ,coll)))}
+                   {:iter iter :coll coll :body `(cons ,body-expr (,iter (rest ,coll)))}
                    (reverse parts)))))
 (install-macro :for expand-for)
 
@@ -727,7 +728,7 @@
   (let* ((dict-name  (or (aget binding ':as) (gensym :destructure-bind)))
         (dict-bind  `(if (dictionary? ,dict-name) ,dict-name (apply dictionary (vec ,dict-name))))
         (get*       (dict-get* dict-name (get binding ':or {}))))
-    (loop ((ks (keys (dissoc binding ':as ':or))) (result [dict-name from, dict-name dict-bind]))
+    (loop ((ks (keys (dissoc binding ':as ':or))) (result [dict-name from dict-name dict-bind]))
       (if (empty? ks)
         result
         (let* ((k (first ks)) (v (get binding k)) (k* (and (keyword? k) (name k))))

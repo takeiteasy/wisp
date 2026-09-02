@@ -80,6 +80,12 @@
         (f      (lambda (%1 %2) (get js-set %1 %2))))
     (clone-proto-props! js-set f)
     (setf f.to-string (seq->string "#{" "}"))
+    ;; Reassigning __proto__ below severs f's link to Function.prototype,
+    ;; so callers that do (f.apply ...)/(f.call ...) (e.g. complement,
+    ;; apply) would otherwise find no such method -- pin them down as
+    ;; own properties first so f stays usable as a plain function too.
+    (setf f.apply Function.prototype.apply)
+    (setf f.call Function.prototype.call)
     (setf f.__proto__ js-set)
     (Object.define-property f :length {:value f.size})
     (aset f Symbol.iterator f.values)
