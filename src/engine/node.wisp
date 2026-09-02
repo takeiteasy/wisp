@@ -2,18 +2,18 @@
   (:require [fs :refer [read-file-sync]]
             [wisp.compiler :refer [compile]]))
 
-(set! global.**verbose** (<= 0 (.indexOf process.argv :--verbose)))
+(setf global.**verbose** (<= 0 (.indexOf process.argv :--verbose)))
 
-(defn compile-path
-  [path]
-  (let [source (read-file-sync path :utf8)
-        output (compile source {:source-uri path})]
+(defun compile-path
+  (path)
+  (let* ((source (read-file-sync path :utf8))
+        (output (compile source {:source-uri path})))
     (if (:error output)
       (throw (:error output))
       (:code output))))
 
 ;; Register `.wisp` file extension so that
 ;; modules can be simply required.
-(set! (get require.extensions ".wisp")
-      (fn [src path]
+(setf (get require.extensions ".wisp")
+      (lambda (src path)
         (._compile src (compile-path path) path)))

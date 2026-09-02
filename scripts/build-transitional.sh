@@ -64,7 +64,6 @@ OLD_SYNTAX_FILES=(
   sequence
   backend/escodegen/writer
   backend/escodegen/generator
-  engine/node
 )
 
 # path:git-ref -- git-ref is the last commit where src/<path>.wisp was
@@ -76,6 +75,9 @@ NEW_SYNTAX_FILES=(
   "wisp:0463019"
   "backend/javascript/writer:c8d86d6"
   "repl:d21a199"
+  "engine/node:57c1c59"
+  "engine/browser:57c1c59"
+  "engine/browserExport:57c1c59"
 )
 
 echo "== stage 0: old-syntax files, current src/, via stage-0 =="

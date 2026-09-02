@@ -1,59 +1,59 @@
 (ns runner.main
   (:require [wisp.compiler :refer [compile]]))
 
-(def _wisp_runtime (require "../runtime.js"))
-(def _wisp_sequence (require "../sequence.js"))
-(def _wisp_string (require "../string.js"))
+(defvar _wisp_runtime (require "../runtime.js"))
+(defvar _wisp_sequence (require "../sequence.js"))
+(defvar _wisp_string (require "../string.js"))
 
-(defn fetch-source [src callback]
-  (let [xhr (new XMLHttpRequest)]
-    ;(.addEventListener xhr "timeout" (fn [ev] (console.log "Timeout loading" src)) false)
+(defun fetch-source (src callback)
+  (let* ((xhr (new XMLHttpRequest)))
+    ;(.addEventListener xhr "timeout" (lambda (ev) (console.log "Timeout loading" src)) false)
     (.open xhr "GET" src true)
     (.addEventListener xhr "load"
-                       (fn [ev]
+                       (lambda (ev)
                          (if (and (>= xhr.status 200) (< xhr.status 300))
                            (callback xhr.responseText)
                            (console.error xhr.statusText))) false)
-    ;(set! (.-timeout xhr) 30)
+    ;(setf (.-timeout xhr) 30)
     (if xhr.overrideMimeType
       (xhr.overrideMimeType "text/plain"))
     (xhr.setRequestHeader "If-Modified-Since" "Fri, 01 Jan 1960 00:00:00 GMT")
     (.send xhr null)))
 
-(defn run-wisp-code [code url]
-  (let [result (compile code {:source-uri (or url "inline")})
-        error (:error result)]
+(defun run-wisp-code (code url)
+  (let* ((result (compile code {:source-uri (or url "inline")}))
+        (error (:error result)))
     (if error
       (console.error error)
       ((Function (eval (:code result)))))))
 
-(defn fetch-and-run-wisp-code [url]
+(defun fetch-and-run-wisp-code (url)
   (fetch-source url
-                (fn [code]
+                (lambda (code)
                   (run-wisp-code code url))))
 
-(defn __main__ [ev]
+(defun __main__ (ev)
   ; hoist wisp builtins into the global window context
   (.forEach [_wisp_string _wisp_sequence _wisp_runtime]
-            (fn [f]
+            (lambda (f)
               (.forEach (.keys Object f)
-                        #(set! (get window %) (get f %)))))
+                        (lambda (k) (setf (get window k) (get f k))))))
   ;(console.log "running __main__")
   ; find all the script tags on the page
-  (let [scripts (document.getElementsByTagName "script")]
-    (loop [x 0]
+  (let* ((scripts (document.getElementsByTagName "script")))
+    (loop ((x 0))
       ; loop through every script tag
       (if (< x scripts.length)
-        (let [script (get scripts x)
-              source (.-src script)
-              content (.-text script)
-              content-type (.-type script)]
+        (let* ((script (get scripts x))
+              (source (.-src script))
+              (content (.-text script))
+              (content-type (.-type script)))
           ;(console.log "src:" (.-src script))
           ;(console.log "type:" (.-type script))
           ;(console.log "content:" (.-text script))
           ; if the script tag has application/wisp as the type then run it
           (if (== content-type "application/wisp")
-            (do
+            (progn
               (if source
                 (fetch-and-run-wisp-code source))
               (if content

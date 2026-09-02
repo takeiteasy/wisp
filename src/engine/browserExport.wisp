@@ -11,7 +11,7 @@
             [wisp.ast :as ast]
             ))
 
-(set! module.exports {
+(setf module.exports {
                       :engine {:browser browser}
                       :runtime runtime
                       :sequence sequence
