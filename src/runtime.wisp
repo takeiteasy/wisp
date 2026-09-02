@@ -333,138 +333,136 @@
   numbers and collections in a type-independent manner. Clojure's
   immutable data structures define -equiv (and thus =) as a value,
   not an identity, comparison."
-  ([x] true)
-  ([x y] (or (identical? x y)
-             (cond (nil? x) (nil? y)
-                   (nil? y) (nil? x)
-                   (string? x) (and (string? y) (identical? (.toString x)
-                                                            (.toString y)))
-                   (number? x) (and (number? y) (identical? (.valueOf x)
-                                                            (.valueOf y)))
-                   (set? x) (set-equal? x y)
-                   (or (vector? x) (list? x) (lazy-seq? x)) (and (or (vector? y) (list? y) (lazy-seq? y))
-                                                                 (=.*seq= x y))
-                   (fn? x) false
-                   (boolean? x) false
-                   (date? x) (date-equal? x y)
-                   (re-pattern? x) (pattern-equal? x y)
-                   :else (dictionary-equal? x y))))
-  ([x y & more]
-   (loop [previous x
-          current y
-          index 0
-          count (.-length more)]
-    (and (equivalent? previous current)
-         (if (< index count)
-          (recur current
-                 (get more index)
-                 (inc index)
-                 count)
-          true)))))
+  [x & args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) true
+          (identical? n 1)
+          (let [y (get args 0)]
+            (or (identical? x y)
+                (cond (nil? x) (nil? y)
+                      (nil? y) (nil? x)
+                      (string? x) (and (string? y) (identical? (.toString x)
+                                                               (.toString y)))
+                      (number? x) (and (number? y) (identical? (.valueOf x)
+                                                               (.valueOf y)))
+                      (set? x) (set-equal? x y)
+                      (or (vector? x) (list? x) (lazy-seq? x)) (and (or (vector? y) (list? y) (lazy-seq? y))
+                                                                    (=.*seq= x y))
+                      (fn? x) false
+                      (boolean? x) false
+                      (date? x) (date-equal? x y)
+                      (re-pattern? x) (pattern-equal? x y)
+                      :else (dictionary-equal? x y))))
+          :else
+          (loop [previous x
+                 current (get args 0)
+                 index 1]
+            (and (equivalent? previous current)
+                 (if (< index n)
+                  (recur current
+                         (get args index)
+                         (inc index))
+                  true))))))
 
 (def = equivalent?)
 (set! (aget = '-wisp-types) -wisp-types)
 
 (defn ^boolean not=
   "Same as (not (= obj1 obj2))"
-  ([x] false)
-  ([x y] (not (= x y)))
-  ([x y & more] (not (apply = x y more))))
+  [x & args]
+  (if (identical? (.-length args) 0)
+    false
+    (not (apply = x args))))
 
 (defn ^boolean ==
   "Equality. Returns true if x equals y, false if not. Compares
   numbers and collections in a type-independent manner. Clojure's
   immutable data structures define -equiv (and thus =) as a value,
   not an identity, comparison."
-  ([x] true)
-  ([x y] (identical? x y))
-  ([x y & more]
-   (loop [previous x
-          current y
-          index 0
-          count (.-length more)]
-    (and (== previous current)
-         (if (< index count)
-          (recur current
-                 (get more index)
-                 (inc index)
-                 count)
-          true)))))
+  [x & args]
+  (let [n (.-length args)]
+    (if (identical? n 0)
+      true
+      (loop [previous x
+             current (get args 0)
+             index 1]
+        (and (identical? previous current)
+             (if (< index n)
+              (recur current
+                     (get args index)
+                     (inc index))
+              true))))))
 
 
 (defn ^boolean >
   "Returns non-nil if nums are in monotonically decreasing order,
   otherwise false."
-  ([x] true)
-  ([x y] (> x y))
-  ([x y & more]
-   (loop [previous x
-          current y
-          index 0
-          count (.-length more)]
-    (and (> previous current)
-         (if (< index count)
-          (recur current
-                 (get more index)
-                 (inc index)
-                 count)
-          true)))))
+  [x & args]
+  (let [n (.-length args)]
+    (if (identical? n 0)
+      true
+      (loop [previous x
+             current (get args 0)
+             index 1]
+        (and (> previous current)
+             (if (< index n)
+              (recur current
+                     (get args index)
+                     (inc index))
+              true))))))
 
 (defn ^boolean >=
   "Returns non-nil if nums are in monotonically non-increasing order,
   otherwise false."
-  ([x] true)
-  ([x y] (>= x y))
-  ([x y & more]
-   (loop [previous x
-          current y
-          index 0
-          count (.-length more)]
-    (and (>= previous current)
-         (if (< index count)
-          (recur current
-                 (get more index)
-                 (inc index)
-                 count)
-          true)))))
+  [x & args]
+  (let [n (.-length args)]
+    (if (identical? n 0)
+      true
+      (loop [previous x
+             current (get args 0)
+             index 1]
+        (and (>= previous current)
+             (if (< index n)
+              (recur current
+                     (get args index)
+                     (inc index))
+              true))))))
 
 
 (defn ^boolean <
   "Returns non-nil if nums are in monotonically increasing order,
   otherwise false."
-  ([x] true)
-  ([x y] (< x y))
-  ([x y & more]
-   (loop [previous x
-          current y
-          index 0
-          count (.-length more)]
-    (and (< previous current)
-         (if (< index count)
-          (recur current
-                 (get more index)
-                 (inc index)
-                 count)
-          true)))))
+  [x & args]
+  (let [n (.-length args)]
+    (if (identical? n 0)
+      true
+      (loop [previous x
+             current (get args 0)
+             index 1]
+        (and (< previous current)
+             (if (< index n)
+              (recur current
+                     (get args index)
+                     (inc index))
+              true))))))
 
 
 (defn ^boolean <=
   "Returns non-nil if nums are in monotonically non-decreasing order,
   otherwise false."
-  ([x] true)
-  ([x y] (<= x y))
-  ([x y & more]
-   (loop [previous x
-          current y
-          index 0
-          count (.-length more)]
-    (and (<= previous current)
-         (if (< index count)
-          (recur current
-                 (get more index)
-                 (inc index)
-                 count)
-          true)))))
+  [x & args]
+  (let [n (.-length args)]
+    (if (identical? n 0)
+      true
+      (loop [previous x
+             current (get args 0)
+             index 1]
+        (and (<= previous current)
+             (if (< index n)
+              (recur current
+                     (get args index)
+                     (inc index))
+              true))))))
 
 (defn ^boolean +
   [& args]

@@ -72,9 +72,11 @@
   :source-map-uri - Returns back (:source-map-uri options) if was passed
                     in, otherwise computes one from (:source-uri options)
                     by adding `.map` file extension."
-  ([source] (compile source {}))
-  ([source options]
-   (let [source-uri (or (:source-uri options) (name :anonymous.wisp)) ;; HACK: Workaround for segfault #6691
+  [source & args]
+  (if (empty? args)
+    (compile source {})
+    (let [options (first args)
+          source-uri (or (:source-uri options) (name :anonymous.wisp)) ;; HACK: Workaround for segfault #6691
          forms (read-forms source source-uri)
 
          ast (if (:error forms)

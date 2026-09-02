@@ -138,12 +138,15 @@
 (defn range
   "Returns a vector of nums from start (inclusive) to end
   (exclusive), by step, where start defaults to 0 and step to 1."
-  ([end]            (range 0 end 1))
-  ([start end]      (range start end 1))
-  ([start end step] (if (< step 0)
+  [& args]
+  (cond (identical? (count args) 1) (range 0 (first args) 1)
+        (identical? (count args) 2) (range (first args) (second args) 1)
+        :else
+        (let [start (first args), end (second args), step (third args)]
+          (if (< step 0)
                       (.map (range (- start) (- end) (- step)) #(- %))
                       (Array.from {:length (/ (- (+ end step) start 1) step)}
-                                  (fn [_ i] (+ start (* i step)))))))
+                                  (fn [_ i] (+ start (* i step))))))))
 
 (defn mapv
   "Returns a vector consisting of the result of applying `f` to the
@@ -663,8 +666,10 @@
   element in the seq do not occur until the seq is consumed. dorun can
   be used to force any effects. Walks through the successive nexts of
   the seq, does not retain the head and returns nil."
-  ([coll] (dorun Infinity coll))
-  ([n coll] (run! identity (take n coll))))
+  [& args]
+  (let [n (if (identical? (count args) 1) Infinity (first args))
+        coll (last args)]
+    (run! identity (take n coll))))
 
 (defn doall
   "When lazy sequences are produced via functions that have side
@@ -673,5 +678,8 @@
   be used to force any effects. Walks through the successive nexts of
   the seq, retains the head and returns it, thus causing the entire
   seq to reside in memory at one time."
-  ([coll] (doall Infinity coll))
-  ([n coll] (dorun n coll) coll))
+  [& args]
+  (let [n (if (identical? (count args) 1) Infinity (first args))
+        coll (last args)]
+    (dorun n coll)
+    coll))

@@ -1,6 +1,6 @@
 (ns wisp.string
   (:require [wisp.runtime :refer [fn? str subs re-matches nil? string? re-pattern? dec max]]
-            [wisp.sequence :refer [seq lazy-seq vec conj cons first rest take count empty?]]))
+            [wisp.sequence :refer [seq lazy-seq vec conj cons first second rest take count empty?]]))
 
 (def
   ^{:doc "Returns all matches of pattern occurring in string (as is)"}
@@ -45,10 +45,10 @@
 (defn join
   "Returns a string of all elements in coll, as returned by (seq coll),
    separated by an optional separator."
-  ([coll]
-     (apply str (vec coll)))
-  ([separator coll]
-     (.join (vec coll) separator)))
+  [& args]
+  (if (identical? (count args) 1)
+    (apply str (vec (first args)))
+    (.join (vec (second args)) (first args))))
 
 (defn upper-case
   "Converts string to all upper-case."

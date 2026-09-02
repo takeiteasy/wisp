@@ -796,17 +796,19 @@
   :form - Given form.
 
   Based on :op node may contain different set of properties."
-  ([form] (analyze {:locals {}
-                    :bindings []
-                    :top true} form))
-  ([env form]
-   (cond (nil? form) (analyze-constant env form)
-         (symbol? form) (analyze-symbol env form)
-         (list? form) (if (empty? form)
-                        (analyze-quoted form)
-                        (analyze-list env form))
-         (dictionary? form) (analyze-dictionary env form)
-         (vector? form) (analyze-vector env form)
-         ;(set? form) (analyze-set env form name)
-         (keyword? form) (analyze-keyword env form)
-         :else (analyze-constant env form))))
+  [& args]
+  (if (identical? (count args) 1)
+    (analyze {:locals {}
+              :bindings []
+              :top true} (first args))
+    (let [env (first args), form (second args)]
+      (cond (nil? form) (analyze-constant env form)
+            (symbol? form) (analyze-symbol env form)
+            (list? form) (if (empty? form)
+                           (analyze-quoted form)
+                           (analyze-list env form))
+            (dictionary? form) (analyze-dictionary env form)
+            (vector? form) (analyze-vector env form)
+            ;(set? form) (analyze-set env form name)
+            (keyword? form) (analyze-keyword env form)
+            :else (analyze-constant env form)))))

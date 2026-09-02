@@ -153,10 +153,10 @@
   "Calling a keyword desugars to property access with that
   keyword name on the given argument:
   '(:foo bar) => '(get bar :foo)"
-  ([keyword target]
-    `(get ~target ~keyword))
-  ([keyword target default*]
-    `(get ~target ~keyword ~default*)))
+  [keyword target & args]
+  (if (empty? args)
+    `(get ~target ~keyword)
+    `(get ~target ~keyword ~(first args))))
 
 (defn- desugar
   [expander form]
