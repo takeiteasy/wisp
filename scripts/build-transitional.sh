@@ -62,7 +62,6 @@ OLD_SYNTAX_FILES=(
   analyzer
   runtime
   sequence
-  repl
   backend/escodegen/writer
   backend/escodegen/generator
   engine/node
@@ -76,6 +75,7 @@ NEW_SYNTAX_FILES=(
   "compiler:cb41919"
   "wisp:0463019"
   "backend/javascript/writer:c8d86d6"
+  "repl:d21a199"
 )
 
 echo "== stage 0: old-syntax files, current src/, via stage-0 =="
