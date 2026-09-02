@@ -43,7 +43,7 @@
 (set! List.prototype.length 0)
 (set! List.type (:list -wisp-types))
 (set! List.prototype.type List.type)
-(set! List.prototype.tail (Object.create List.prototype))
+(set! List.prototype.tail nil)
 (set! List.prototype.to-string (seq->string "(" ")"))
 (aset List.prototype Symbol.iterator list-iterator)
 
@@ -106,7 +106,7 @@
   "Creates list of the given items"
   []
   (if (identical? (.-length arguments) 0)
-    (Object.create List.prototype)
+    nil
     (.reduce-right (.call Array.prototype.slice arguments)
                    (fn [tail head] (cons head tail))
                    (list))))

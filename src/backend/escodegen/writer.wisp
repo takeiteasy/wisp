@@ -163,11 +163,8 @@
 
 (defn write-nil
   [form]
-  {:type :UnaryExpression
-   :operator :void
-   :argument {:type :Literal
-              :value 0}
-   :prefix true})
+  {:type :Literal
+   :value null})
 (install-writer! :nil write-nil)
 
 (defn write-literal
