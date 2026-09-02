@@ -57,7 +57,6 @@ cp bin/wisp.js transitional/bin/wisp.js
 
 # path relative to src/, without .wisp extension
 OLD_SYNTAX_FILES=(
-  expander
   analyzer
   runtime
   sequence
@@ -67,6 +66,7 @@ OLD_SYNTAX_FILES=(
 # still old-syntax (i.e. the parent of the commit that rewrote it).
 NEW_SYNTAX_FILES=(
   "reader:fde4259"
+  "expander:2d8afd9"
   "string:cb41919"
   "ast:13c6510"
   "compiler:cb41919"
