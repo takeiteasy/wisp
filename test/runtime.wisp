@@ -1,11 +1,11 @@
 (ns wisp.test.runtime
   (:require [wisp.test.util :refer [is thrown?]]
-            [wisp.src.runtime :refer [dictionary? vector? iterable? set?
+            [wisp.runtime :refer [dictionary? vector? iterable? set?
                                       subs str and or = == not= > >= < <=
                                       + - / * quot mod rem rem* nan?]]
-            [wisp.src.sequence :refer [list cons concat vec lazy-seq seq set
+            [wisp.sequence :refer [list cons concat vec lazy-seq seq set
                                        take range infinite-range lazy-concat]]
-            [wisp.src.ast :refer [symbol]]))
+            [wisp.ast :refer [symbol]]))
 
 
 (is (not (dictionary? 2)) "2 is not dictionary")
@@ -20,7 +20,9 @@
 
 (is (not (iterable? nil)) "nil is not iterable")
 (is (not (iterable? {})) "{} is not iterable")
-(is (iterable? '()) "() is iterable")
+;; () is nil (the Phase 2 nil singleton), not a distinct empty-list
+;; object, so it is not iterable either -- see "nil is not iterable"
+;; above.
 (is (iterable? (lazy-seq)) "(lazy-seq) is iterable")
 (is (iterable? []) "[] is iterable")
 (is (iterable? (Set.)) "Set{} is iterable")
@@ -31,7 +33,7 @@
 
 (is (= (Set. [1 2]) (Set. [2 1])))
 
-(is (= `(1 ~@'(2 3) 4 ~@'(5))
+(is (= `(1 ,@'(2 3) 4 ,@'(5))
        '(1 2 3 4 5)))
 
 (is (= (subs "Clojure" 1) "lojure"))
@@ -127,8 +129,8 @@
 (is (= (apply quot [ 1024.8402 5.12])  200))
 (is (= (apply quot [-1024.8402 5.12]) -201))
 
-(defn- approx= [x delta & xs]
-  (.every xs #(> delta (Math.abs (- x %)))))
+(defun- approx= (x delta &rest xs)
+  (.every xs (lambda (%) (> delta (Math.abs (- x %))))))
 
 (is (= (apply mod [ 10  3])  1))
 (is (= (apply mod [-10  3])  2))
@@ -234,7 +236,10 @@
 (is (apply not= ["b" 'b]))
 
 (is (= (apply nan? []) true))
-(is (= (apply nan? [nil]) true))
+;; nil is the Phase 2 singleton (real JS null), and Number(null) is 0,
+;; not NaN -- isNaN(nil) is false now, unlike when nil compiled to
+;; JS undefined.
+(is (= (apply nan? [nil]) false))
 (is (= (apply nan? ["hi"]) true))
 (is (= (apply nan? [false]) false))
 (is (= (apply nan? [true]) false))
