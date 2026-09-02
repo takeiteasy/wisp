@@ -1,12 +1,12 @@
 (ns wisp.test.ast
-  (:require [wisp.test.util :refe [is thrown?]]
-            [wisp.src.reader :refer [read-from-string]]
-            [wisp.src.sequence :refer [list]]
-            [wisp.src.runtime :refer [str =]]
-            [wisp.src.ast :refer [name gensym symbol? symbol keyword? keyword
+  (:require [wisp.test.util :refer [is thrown?]]
+            [wisp.reader :refer [read-from-string]]
+            [wisp.sequence :refer [list]]
+            [wisp.runtime :refer [str =]]
+            [wisp.ast :refer [name gensym symbol? symbol keyword? keyword
                                   quote? quote syntax-quote? syntax-quote]]))
 
-(def read-string read-from-string)
+(defvar read-string read-from-string)
 
 
 (is (symbol? (gensym))
