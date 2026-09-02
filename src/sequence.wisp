@@ -480,8 +480,13 @@
   If no comparator is supplied, uses compare."
   (let* ((has-comparator (fn? f))
         (items          (if (and (not has-comparator) (nil? items)) f items))
-        (compare        (if has-comparator (sort-comparator f)))
-        (result         (.sort (vec items) compare)))
+        ;; Array.prototype.sort throws if handed a comparator argument
+        ;; that isn't a function or (real JS) undefined -- nil is real
+        ;; null now (Phase 2), so it can't be passed through directly
+        ;; when there's no comparator.
+        (result         (if has-comparator
+                          (.sort (vec items) (sort-comparator f))
+                          (.sort (vec items)))))
     (cond ((nil? items)    '())
           ((vector? items) result)
           (else           (apply list result)))))
