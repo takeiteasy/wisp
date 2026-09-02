@@ -9,3 +9,7 @@ npm-debug.log
 /build/
 /bootstrap/
 package-lock.json
+
+# new-syntax Phase 3: frozen transitional compiler (old-syntax source,
+# new-syntax semantics) snapshotted before the src/ tree goes new-syntax.
+/transitional/
