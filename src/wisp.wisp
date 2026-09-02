@@ -89,7 +89,11 @@
                     (.parse params))
         options (.opts program)]
     (set! (.-args options) (.-args program))
-    (conj {:no-map (not (:map options))}
+    ;; commander camel-cases dashed long options, so `--source-uri` lands on
+    ;; `options.sourceUri`; map them back to the dashed keys the compiler reads.
+    (conj {:no-map (not (:map options))
+           :source-uri (:sourceUri options)
+           :output-uri (:outputUri options)}
           options)))
 
 (defn main

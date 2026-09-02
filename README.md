@@ -33,15 +33,29 @@ You can try _wisp_ on your browser by [trying the interactive compiler](http://j
 ([repo](https://github.com/Gozala/try-wisp)) or [an online REPL](http://jeditoolkit.com/interactivate-wisp)
 with syntax highlighting.
 
-# Install
+# Build
 
-You can install _wisp_ locally via `npm` by doing:
+This fork builds itself — there is no `wisp` npm package in the dependency
+tree. The compiler is written in wisp (`src/*.wisp`); a prebuilt, self-hosted
+copy lives on the orphan `stage-0` branch and is extracted into `./bootstrap/`
+at build time to compile `src/`, after which the fresh compiler self-hosts.
 
-    npm install -g wisp
+    git submodule update --init
+    npm install            # browserify, minify, escodegen, base64-encode, commander
+    make                   # core compiler -> *.js
+    make test              # recompile round-trip + fixpoint gate + suite
 
-...and then running `wisp` to get a REPL. To compile standalone `.wisp` files, simply do:
+A fresh `git clone` from sr.ht carries every branch, so `./bootstrap/` extracts
+offline. If the ref is missing (shallow or single-branch clone):
 
-    cat in.wisp | wisp > out.js
+    git fetch origin stage-0:stage-0
+
+See [docs/bootstrapping.md](docs/bootstrapping.md) for the `stage-0` workflow,
+`make bootstrap-check` and `make bootstrap-refresh`.
+
+To compile a standalone `.wisp` file once built:
+
+    node bin/wisp.js -c path/to/in.wisp > out.js
 
 # wisc — native CLI (QuickJS)
 

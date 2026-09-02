@@ -8,13 +8,17 @@ no runtime dependencies beyond libc.
 
 ## Building
 
-Requirements: node/npm (one-time bootstrap — wisp is written in wisp),
-cmake, a C compiler, and git submodules.
+Requirements: node/npm (build only — wisp is written in wisp), cmake, a C
+compiler, and git submodules.
 
     git submodule update --init   # fetches vendor/quickjs-ng
-    npm install                   # installs browserify + bootstrap wisp
-    make                          # compiles src/*.wisp with the bootstrap compiler
+    npm install                   # browserify, minify, escodegen, base64-encode, commander
+    make                          # extracts the stage-0 compiler, compiles src/*.wisp
     make wisc                     # bundle + quickjs + C frontend -> build/wisc
+
+The stage-0 compiler (a prebuilt self-hosted `src/`) is checked in on the
+orphan `stage-0` branch and extracted to `./bootstrap/`; no `wisp` npm package
+is involved. See [bootstrapping.md](bootstrapping.md).
 
 `make wisc-check` runs a small smoke suite against the binary.
 `make wisc-install` installs the binary to `~/.local/bin/wisc`
@@ -73,7 +77,7 @@ Compiled wisp emits CommonJS-style `require()` calls. `wisc` provides:
 ## Architecture
 
 ```
-src/*.wisp --(bootstrap wisp)--> *.js --(browserify --standalone Wisp)--> dist/wisp_qjs.js
+src/*.wisp --(stage-0 compiler)--> *.js --(browserify --standalone Wisp)--> dist/wisp_qjs.js
 dist/wisp_qjs.js --(xxd -i)--> build/bundle.c
 vendor/quickjs-ng --(cmake)--> libqjs.a
 src/main.c + bundle.c + libqjs.a --> build/wisc
@@ -85,8 +89,9 @@ src/main.c + bundle.c + libqjs.a --> build/wisc
 
 ## Notes & limitations
 
-- Building requires node/npm once because wisp is self-hosted; the
-  generated `*.js` artifacts stay uncommitted.
+- Building requires node/npm because wisp is self-hosted; the generated
+  `*.js` artifacts and the extracted `./bootstrap/` stay uncommitted (the
+  prebuilt compiler is committed on the `stage-0` branch instead).
 - quickjs-ng's tokenizer reads one byte past the buffer passed to
   `JS_Eval`, so the embedded bundle is always evaluated from a
   NUL-terminated copy (see `load_bundle` in `src/main.c`).

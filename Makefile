@@ -3,19 +3,25 @@ MINIFY = ./node_modules/.bin/minify
 WISP_CURRENT = node ./bin/wisp.js
 FLAGS =
 INSTALL_MESSAGE = "You need to run 'npm install' to install build dependencies."
-BUILD_DEPS = $(BROWSERIFY) $(MINIFY) ./node_modules/wisp/bin/wisp.js
+BUILD_DEPS = $(BROWSERIFY) $(MINIFY)
 # set make's source file search path
 vpath % src
+
+# Never leave a half-written target on disk: a failed compile used to leave a
+# 0-byte .js that make then treated as fresh.
+.DELETE_ON_ERROR:
 
 ifdef verbose
 	FLAGS = --verbose
 endif
 
-ifdef current
-	WISP = $(WISP_CURRENT)
-else
-	WISP = ./node_modules/wisp/bin/wisp.js
-endif
+# Stage-0 compiler: the prebuilt, self-hosted wisp compiler lives on the orphan
+# `stage-0` branch and is extracted into ./bootstrap/ (a build artifact, gitignored)
+# by the $(BOOTSTRAP_ENTRY) rule further down. No npm `wisp` package is involved.
+BOOTSTRAP_REF ?= stage-0
+BOOTSTRAP_DIR = bootstrap
+BOOTSTRAP_ENTRY = $(BOOTSTRAP_DIR)/wisp-bootstrap.js
+WISP = node $(BOOTSTRAP_ENTRY)
 
 CORE = expander runtime sequence string ast reader compiler analyzer
 core: $(CORE) writer escodegen
@@ -24,7 +30,32 @@ node: core wisp node-engine repl
 browser: node core browser-engine dist/wisp.min.js
 all: browser
 
-test: core node recompile
+$(BOOTSTRAP_ENTRY):
+	@if git rev-parse --verify --quiet $(BOOTSTRAP_REF)^{commit} >/dev/null; then \
+		echo "Extracting stage-0 compiler from '$(BOOTSTRAP_REF)' -> $(BOOTSTRAP_DIR)/"; \
+		rm -rf $(BOOTSTRAP_DIR) && mkdir -p $(BOOTSTRAP_DIR) && \
+		git archive $(BOOTSTRAP_REF) | tar -x -C $(BOOTSTRAP_DIR); \
+	else \
+		echo "stage-0 ref '$(BOOTSTRAP_REF)' not found. Fetch it with:"; \
+		echo "    git fetch origin stage-0:stage-0"; \
+		exit 1; \
+	fi
+
+bootstrap-clean:
+	rm -rf $(BOOTSTRAP_DIR)
+
+# Rebuild the stage-0 payload from the current src/ and update the local
+# `stage-0` branch. Run after landing compiler/codegen changes.
+bootstrap-refresh: node
+	$(MAKE) recompile
+	./scripts/refresh-stage-0.sh
+
+# Self-hosting fixpoint gate: stage-0 compiles src/ -> A, A compiles src/ -> B,
+# B compiles src/ -> C; assert B == C byte-for-byte.
+bootstrap-check: $(BOOTSTRAP_ENTRY)
+	./scripts/bootstrap-check.sh
+
+test: core node recompile bootstrap-check
 	$(WISP_CURRENT) ./test/test.wisp $(FLAGS)
 
 $(BUILD_DEPS):
@@ -35,9 +66,10 @@ clean:
 	rm -rf engine
 	rm -rf backend
 	rm -rf dist
+	rm -rf $(BOOTSTRAP_DIR)
 	rm -f *.js
 
-%.js: %.wisp $(WISP)
+%.js: %.wisp $(BOOTSTRAP_ENTRY)
 	@mkdir -p $(dir $@)
 	$(WISP) --source-uri wisp/$(subst .js,.wisp,$@) < $< > $@
 
@@ -171,4 +203,5 @@ wisc-install: $(WISC)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	install -m 0755 $(WISC) $(DESTDIR)$(PREFIX)/bin/wisc
 
-.PHONY: wisc wisc-check wisc-clean wisc-install
+.PHONY: wisc wisc-check wisc-clean wisc-install \
+        bootstrap-clean bootstrap-refresh bootstrap-check

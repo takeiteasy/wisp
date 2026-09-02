@@ -7,4 +7,5 @@ workspace
 npm-debug.log
 /dist/
 /build/
+/bootstrap/
 package-lock.json

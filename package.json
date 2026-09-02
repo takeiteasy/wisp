@@ -37,11 +37,6 @@
   "devDependencies": {
     "browserify": "16.5.0"
   },
-  "overrides": {
-    "wisp": {
-      "commander": "~2.20.3"
-    }
-  },
   "engines": {
     "node": ">=0.4.0"
   },
@@ -60,7 +55,6 @@
     "base64-encode": "~1.0.1",
     "commander": ">=2.2.0",
     "escodegen": "git://github.com/Constellation/escodegen.git#41fbbe5058849b5e082542c5cfce76c2d67792e6",
-    "minify": "^14.1.0",
-    "wisp": "^0.13.0"
+    "minify": "^14.1.0"
   }
 }
