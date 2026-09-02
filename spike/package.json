@@ -1,0 +1,8 @@
+{
+  "name": "cordis-quickjs-spike",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  }
+}
