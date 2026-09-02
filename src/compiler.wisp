@@ -10,47 +10,43 @@
                                               :rename {generate generate-js}]
             [base64-encode :as btoa]))
 
-(def generate generate-js)
+(defvar generate generate-js)
 
-(defn read-form
-  [reader eof]
+(defun read-form (reader eof)
   (try (read reader false eof false)
     (catch error error)))
 
-(defn read-forms
-  [source uri]
-  (let [reader (push-back-reader source uri)
-        eof {}]
-    (loop [forms []
-           form (read-form reader eof)]
-      (cond (error? form) {:forms forms :error form}
-            (identical? form eof) {:forms forms}
-            :else (recur (conj forms form)
-                         (read-form reader eof))))))
+(defun read-forms (source uri)
+  (let* ((reader (push-back-reader source uri))
+        (eof {}))
+    (loop ((forms [])
+           (form (read-form reader eof)))
+      (cond ((error? form) {:forms forms :error form})
+            ((identical? form eof) {:forms forms})
+            (else (recur (conj forms form)
+                         (read-form reader eof)))))))
 
-(defn analyze-form
-  [env form]
+(defun analyze-form (env form)
   (try (analyze env form) (catch error error)))
 
-(defn analyze-forms
-  [forms]
-  (loop [nodes []
-         forms forms
-         env {:locals {}
-              :bindings []
-              :top true
-              :ns {:name 'user.wisp}}]
-    (let [node (analyze-form env (first forms))
-          ns (if (= (:op node) :ns)
-               node
-               (:ns env))]
-      (cond (error? node) {:ast nodes :error node}
-            (<= (count forms) 1) {:ast (conj nodes node)}
-            :else (recur (conj nodes node)
+(defun analyze-forms (forms)
+  (loop ((nodes [])
+         (forms forms)
+         (env {:locals {}
+               :bindings []
+               :top true
+               :ns {:name 'user.wisp}}))
+    (let* ((node (analyze-form env (first forms)))
+          (ns (if (= (:op node) :ns)
+                node
+                (:ns env))))
+      (cond ((error? node) {:ast nodes :error node})
+            ((<= (count forms) 1) {:ast (conj nodes node)})
+            (else (recur (conj nodes node)
                          (rest forms)
-                         (conj env {:ns ns}))))))
+                         (conj env {:ns ns})))))))
 
-(defn compile
+(defun compile (source &rest args)
   "Compiler takes wisp code in form of string and returns a hash
   containing `:source` representing compilation result. If
   `(:source-map options)` is `true` then `:source-map` of the returned
@@ -72,41 +68,39 @@
   :source-map-uri - Returns back (:source-map-uri options) if was passed
                     in, otherwise computes one from (:source-uri options)
                     by adding `.map` file extension."
-  [source & args]
   (if (empty? args)
     (compile source {})
-    (let [options (first args)
-          source-uri (or (:source-uri options) (name :anonymous.wisp)) ;; HACK: Workaround for segfault #6691
-         forms (read-forms source source-uri)
+    (let* ((options (first args))
+          (source-uri (or (:source-uri options) (name :anonymous.wisp))) ;; HACK: Workaround for segfault #6691
+          (forms (read-forms source source-uri))
 
-         ast (if (:error forms)
-               forms
-               (analyze-forms (:forms forms)))
+          (ast (if (:error forms)
+                 forms
+                 (analyze-forms (:forms forms))))
 
-         output (if (:error ast)
-                  ast
-                  (try              ;; TODO: Remove this
-                                    ;; Old compiler has incorrect apply.
-                    (apply generate (vec (cons (conj options
-                                                     {:source source
-                                                      :source-uri source-uri})
-                                               (:ast ast))))
-                    (catch error {:error error})))
+          (output (if (:error ast)
+                    ast
+                    (try              ;; TODO: Remove this
+                                      ;; Old compiler has incorrect apply.
+                      (apply generate (vec (cons (conj options
+                                                       {:source source
+                                                        :source-uri source-uri})
+                                                 (:ast ast))))
+                      (catch error {:error error}))))
 
-         expansion (if (identical? :expansion (:print options))
-                     (reduce (fn [result item]
-                                  (str result (pr-str (.-form item)) "\n"))
-                                  "" (.-ast ast)))
+          (expansion (if (identical? :expansion (:print options))
+                       (reduce (lambda (result item)
+                                    (str result (pr-str (.-form item)) "\n"))
+                                    "" (.-ast ast))))
 
-         result {:source-uri source-uri
-                 :ast (:ast ast)
-                 :forms (:forms forms)
-                 :expansion expansion}]
+          (result {:source-uri source-uri
+                   :ast (:ast ast)
+                   :forms (:forms forms)
+                   :expansion expansion}))
      (conj options output result))))
 
-(defn evaluate
-  [source]
-  (let [output (compile source)]
+(defun evaluate (source)
+  (let* ((output (compile source)))
     (if (:error output)
       (throw (:error output))
       (eval (:code output)))))
