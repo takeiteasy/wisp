@@ -321,66 +321,57 @@
   of that binding, then binds name to that result, repeating for each
   successive form, returning the result of the last form."
   [expr name & forms]
-  `(let [~name ~expr
-         ~@(mapcat (fn [form] [name form])
-                   forms)]
+  `(let** [~name ~expr
+           ~@(mapcat (fn [form] [name form])
+                     forms)]
      ~name))
 (install-macro! :as-> expand-thread-as)
 
 
 (defn expand-cond
-  "Takes a set of test/expr pairs. It evaluates each test one at a
-  time.  If a test returns logical true, cond evaluates and returns
-  the value of the corresponding expr and doesn't evaluate any of the
-  other tests or exprs. (cond) returns nil."
+  "Takes a set of (test body*) paren clauses. It evaluates each test
+  one at a time.  If a test returns logical true, cond evaluates and
+  returns the value of the corresponding body (an implicit progn) and
+  doesn't evaluate any of the other tests or bodies. The bare symbol
+  `else` is the catch-all clause. (cond) returns nil."
   [& clauses]
   (if (not (empty? clauses))
-    (list 'if (first clauses)
-          (if (empty? (rest clauses))
-            (throw (Error "cond requires an even number of forms"))
-            (second clauses))
-          (cons 'cond (rest (rest clauses))))))
+    (let [clause (first clauses), test (first clause), body (rest clause)]
+      (if (= test 'else)
+        `(progn ~@body)
+        `(if ~test (progn ~@body) (cond ~@(rest clauses)))))))
 (install-macro! :cond expand-cond)
 
 (defn expand-case
-  "Takes an expression, and a set of clauses.
-  Each clause can take the form of either:
+  "Takes an expression, and a set of (test-constant body*) paren
+  clauses, or ((test-constant1 ... test-constantN) body*) to group
+  several constants under one body. The bare symbol `else` is the
+  catch-all clause. Test-constants are not evaluated -- they must be
+  compile-time literals and need not be quoted. If no clause matches
+  and no `else` clause was given, an Error is thrown.
 
-  test-constant result-expr
-  (test-constant1 ... test-constantN)  result-expr
-
-  The test-constants are not evaluated. They must be compile-time
-  literals, and need not be quoted.  If the expression is equal to a
-  test-constant, the corresponding result-expr is returned. A single
-  default expression can follow the clauses, and its value will be
-  returned if no clause matches. If no default expression is provided
-  and no clause matches, an Error is thrown.
-
-  Unlike cond and condp, case does a constant-time dispatch, the
-  clauses are not considered sequentially.  All manner of constant
-  expressions are acceptable in case, including numbers, strings,
-  symbols, keywords, and composites thereof. Note that since
-  lists are used to group multiple constants that map to the same
-  expression, a vector can be used to match a list if needed. The
-  test-constants need not be all of the same type.
+  Unlike cond/condp, case's dispatch is not evaluated sequentially at
+  runtime here (it's still lowered to a `cond` chain for now -- a
+  constant-time dispatch is an optimisation, not a semantic
+  requirement of the spec).
 
   Depends on ="
   [e & clauses]
-  (let [sym      (if (symbol? e) e (gensym :case-binding))
-        pairs    (partition 2 clauses)
-        eq*      (fn [c] `(= ~sym '~c))
-        tail     (if (odd? (count clauses))
-                   (last clauses)
-                   `(throw (Error (str "No matching clause: " ~sym))))]
-    (loop [pairs pairs, conds []]
+  (let [sym (if (symbol? e) e (gensym :case-binding))
+        eq* (fn [c] `(= ~sym '~c))]
+    (loop [pairs clauses, conds []]
       (if (empty? pairs)
-        (let [result `(cond ~@conds :else ~tail)]
-          (if (= e sym) result `(let [~sym ~e] ~result)))
-        (let [x (first pairs), xs (rest pairs), consts (first x), res (second x)]
-          (recur xs (conj conds (if-not (list? consts)
-                                  (eq* consts)
-                                  `(or ~@(map eq* consts)))
-                                res)))))))
+        (let [conds (if (some #(= (first %) 'else) conds)
+                      conds
+                      (conj conds (list 'else `(throw (Error (str "No matching clause: " ~sym))))))
+              result (cons 'cond conds)]
+          (if (= e sym) result `(let* ((~sym ~e)) ~result)))
+        (let [x (first pairs), xs (rest pairs), consts (first x), body (rest x)]
+          (recur xs (conj conds
+                          (if (= consts 'else)
+                            (cons 'else body)
+                            (cons (if-not (list? consts) (eq* consts) `(or ~@(map eq* consts)))
+                                  body)))))))))
 (install-macro! :case expand-case)
 
 (defn expand-condp
@@ -415,7 +406,7 @@
                                                 ~(splits (drop 2 xs)))))]
     (if (= sym expr)
       (splits clauses)
-      `(let [~sym ~expr] ~(splits clauses)))))
+      `(let** [~sym ~expr] ~(splits clauses)))))
 (install-macro! :condp expand-condp)
 
 
@@ -475,18 +466,20 @@
 (install-macro! :some->> expand-some-thread-last)
 
 
-(defn expand-defn
-  "Same as (def name (fn [params* ] exprs*)) or
-  (def name (fn ([params* ] exprs*)+)) with any doc-string or attrs added
-  to the var metadata"
-  [&form name & doc+meta+body]
+(defn- build-defun
+  "Shared implementation of `defun`/`defun-`: (defvar id (lambda id
+  params* body*)), folding an optional doc-string/attribute-map exactly
+  as the Clojure-wisp `defn`/`defn-` pair did. `private` picks `defvar`
+  vs `defvar-` -- new-syntax has no `^:private` reader metadata, so
+  privacy is now signalled purely by which macro name was used."
+  [private &form name doc+meta+body]
   (let [doc (if (string? (first doc+meta+body))
               (first doc+meta+body))
 
         ;; If docstring is found it's not part of body.
         meta+body (if doc (rest doc+meta+body) doc+meta+body)
 
-        ;; defn may contain attribute list after
+        ;; defun may contain attribute list after
         ;; docstring or a name, in which case it's
         ;; merged into name metadata.
         metadata (if (dictionary? (first meta+body))
@@ -498,21 +491,47 @@
         ;; Combine all the metadata and add to a name.
         id (with-meta name (conj (or (meta name) {}) metadata))
 
-        fn (with-meta `(fn ~id ~@body) (meta &form))]
-    `(def ~id ~fn)))
-(install-macro! :defn (with-meta expand-defn {:implicit [:&form]}))
+        fn (with-meta `(lambda ~id ~@body) (meta &form))
+        def-op (if private 'defvar- 'defvar)]
+    (list def-op id fn)))
 
+(defn expand-defun
+  "(defun name (params*) exprs*) => (defvar name (lambda name params* exprs*))"
+  [&form name & doc+meta+body]
+  (build-defun false &form name doc+meta+body))
+(install-macro! :defun (with-meta expand-defun {:implicit [:&form]}))
 
-(defn expand-private-defn
-  "Same as (def name (fn [params* ] exprs*)) or
-  (def name (fn ([params* ] exprs*)+)) with any doc-string or attrs added
-  to the var metadata"
-  [name & body]
-  (let [metadata (conj (or (meta name) {})
-                       {:private true})
-        id (with-meta name metadata)]
-    `(defn ~id ~@body)))
-(install-macro :defn- expand-private-defn)
+(defn expand-defun-
+  "Same as `defun` but not exported (see `build-defun`)."
+  [&form name & doc+meta+body]
+  (build-defun true &form name doc+meta+body))
+(install-macro! :defun- (with-meta expand-defun- {:implicit [:&form]}))
+
+(defn expand-defconst
+  "(defconst name value) -- may fold into `defvar-`/`defvar` later; for
+  now a thin alias with no reassignment-prevention semantics."
+  [name value]
+  `(defvar ~name ~value))
+(install-macro! :defconst expand-defconst)
+
+(defn expand-defconst-
+  [name value]
+  `(defvar- ~name ~value))
+(install-macro! :defconst- expand-defconst-)
+
+(defn expand-setq
+  "(setq place value) -- rebind a binding. `set!` already handles both
+  symbol and place (list) targets, so `setq`/`setf` are both plain
+  aliases for it."
+  [place value]
+  `(set! ~place ~value))
+(install-macro! :setq expand-setq)
+
+(defn expand-setf
+  "(setf place value) -- assign a place: (setf (.-x o) 1), (setf (aref a i) v)."
+  [place value]
+  `(set! ~place ~value))
+(install-macro! :setf expand-setf)
 
 
 (defn expand-lazy-seq
@@ -524,21 +543,21 @@
   Depends on lazy-seq"
   {:added "1.0"}
   [& body]
-  `(.call lazy-seq nil false (fn [] ~@body)))
+  `(.call lazy-seq nil false (lambda () ~@body)))
 (install-macro :lazy-seq expand-lazy-seq)
 
 
 (defn expand-when
-  "Evaluates test. If logical true, evaluates body in an implicit do."
+  "Evaluates test. If logical true, evaluates body in an implicit progn."
   [test & body]
-  `(if ~test (do ~@body)))
+  `(if ~test (progn ~@body)))
 (install-macro :when expand-when)
 
-(defn expand-when-not
-  "Evaluates test. If logical false, evaluates body in an implicit do."
+(defn expand-unless
+  "Evaluates test. If logical false, evaluates body in an implicit progn."
   [test & body]
   `(when (not ~test) ~@body))
-(install-macro :when-not expand-when-not)
+(install-macro :unless expand-unless)
 
 
 (defn expand-if-let
@@ -548,15 +567,15 @@
   test, if not, yields else*."
   [bindings then else*]
   (let [name (first bindings), test (second bindings), sym (gensym :if-let-binding)]
-    `(let [~sym ~test]
-       (if ~sym (let [~name ~sym] ~then) ~else*))))
+    `(let** [~sym ~test]
+       (if ~sym (let** [~name ~sym] ~then) ~else*))))
 (install-macro :if-let expand-if-let)
 
 (defn expand-when-let
   "bindings => binding-form test
   When test is true, evaluates body with binding-form bound to the value of test."
   [bindings & body]
-  `(if-let ~bindings (do ~@body)))
+  `(if-let ~bindings (progn ~@body)))
 (install-macro :when-let expand-when-let)
 
 
@@ -568,9 +587,9 @@
   Depends on nil?"
   [bindings then else*]
   (let [name (first bindings), test (second bindings), sym (if (symbol? name) name (gensym :if-some-binding))]
-    `(let [~sym ~test]
+    `(let** [~sym ~test]
        (if-not (nil? ~sym)
-         (let [~name ~sym] ~then)
+         (let** [~name ~sym] ~then)
          ~else*))))
 (install-macro :if-some expand-if-some)
 
@@ -579,7 +598,7 @@
   When test is not nil, evaluates body with binding-form bound to the
   value of test."
   [bindings & body]
-  `(if-some ~bindings (do ~@body)))
+  `(if-some ~bindings (progn ~@body)))
 (install-macro :when-some expand-when-some)
 
 
@@ -610,7 +629,7 @@
   (doto (Map.) (.set :a 1) (.set :b 2))"
   [x & forms]
   (let [sym (gensym :doto-binding)]
-    `(let [~sym ~x]
+    `(let** [~sym ~x]
        ~@(map #(concat [(first %) sym] (rest %)) forms)
        ~sym)))
 (install-macro :doto expand-doto)
@@ -621,7 +640,7 @@
   bound to integers from 0 through n-1."
   [bindings & body]
   (let [name (first bindings),  n (second bindings),  sym (gensym :dotimes-binding)]
-    `(let [~sym ~n]
+    `(let** [~sym ~n]
        (loop [~name 0]
          (when (< ~name ~sym)
            ~@body
@@ -631,7 +650,7 @@
 
 (defn- for-step [context loop & modifiers]
   (let [iter  (:iter context),  coll (:coll context),  body (:body context),  subseq (:subseq context)
-        body* (if-not subseq body `(let [~subseq ~body]
+        body* (if-not subseq body `(let** [~subseq ~body]
                                      (if (empty? ~subseq)
                                        (recur (rest ~coll))
                                        (lazy-concat ~subseq (~iter (rest ~coll))))))
@@ -640,15 +659,15 @@
                   body
                   (let [m (first mods),  item (first m),  arg (second m)]
                     (recur (rest mods)
-                           (cond (= item ':let)   `(let ~arg ~body)
+                           (cond (= item ':let)   `(let** ~arg ~body)
                                  (= item ':while) `(if ~arg ~body)
                                  (= item ':when)  `(if ~arg ~body (recur (rest ~coll))))))))]
     (merge context
            {:subseq (gensym :for-subseq)
-            :body   `((fn ~iter [~coll]
+            :body   `((lambda ~iter (~coll)
                         (lazy-seq (loop [~coll ~coll]
                                     (if-not (empty? ~coll)
-                                      (let [~(first loop) (first ~coll)] ~next)))))
+                                      (let** [~(first loop) (first ~coll)] ~next)))))
                       ~(second loop))})))
 
 (def ^:private for-modifiers #{':let ':while ':when})
@@ -686,7 +705,7 @@
 
   Depends on lazy-seq, lazy-concat, empty?, first, rest, cons, dorun"
   [seq-exprs & body]
-  `(dorun (for ~seq-exprs (do ~@body nil))))
+  `(dorun (for ~seq-exprs (progn ~@body nil))))
 (install-macro :doseq expand-doseq)
 
 
@@ -754,46 +773,99 @@
 (defn- bind-indices* [names]
   (filter #(not (symbol? (nth names %))) (range (count names))))
 
-(defn expand-let
-  "binding => binding-form init-expr
+(defn- paren-bindings->vec
+  "Turns a new-syntax `let`/`let*` paren binding list, e.g.
+  ((x 1) (y 2)), into the flat vector [x 1 y 2] the internal `let**`
+  form (and `destructure`) expect."
+  [bindings]
+  (vec (mapcat (fn [pair] [(first pair) (second pair)]) bindings)))
 
-  Evaluates the exprs in a lexical context in which the symbols in
-  the binding-forms are bound to their respective init-exprs or parts
-  therein.
-
-  Depends on dictionary?, dictionary, vec, get"
+(defn expand-let*
+  "(let* ((x 1) (y (+ x 1))) body*) -- sequential: each binding sees
+  the previous ones."
   [bindings & body]
-  `(let* ~(destructure bindings) ~@body))
-(install-macro :let expand-let)
+  `(let** ~(destructure (paren-bindings->vec bindings)) ~@body))
+(install-macro! :let* expand-let*)
 
-(defn expand-fn
-  "(fn name? [params*] exprs*)
-   (fn name? ([params*] exprs*) +)
+(defn expand-let
+  "(let ((x 1) (y 2)) body*) -- bindings evaluated in the OUTER scope
+  (parallel): every init-expr sees only what was bound before this
+  `let`, never a sibling binding introduced by the same form. All
+  init-exprs are evaluated first (bound to gensyms), then the real
+  names are bound from those gensyms."
+  [bindings & body]
+  (let [pairs (partition 2 (paren-bindings->vec bindings))
+        gensyms (map (fn [_] (gensym :let-binding)) pairs)
+        outer (mapcat (fn [g pair] [g (second pair)]) gensyms pairs)
+        inner (mapcat (fn [g pair] [(first pair) g]) gensyms pairs)]
+    `(let** ~(vec outer) (let** ~(destructure (vec inner)) ~@body))))
+(install-macro! :let expand-let)
 
-  params => positional-params* , or positional-params* & next-param
-  positional-param => binding-form
-  next-param => binding-form
-  name => symbol
+(defn- parse-arglist
+  "Parses a new-syntax parameter list -- (a b &optional (c 10) &rest r)
+  -- into {:names [...] :defaults ([name default] ...)}. :names is a
+  flat vector using the existing `& rest-name` variadic convention
+  fn*/analyze-fn already understands; :defaults are [name default-form]
+  pairs to prepend as body statements. Positional destructuring
+  (a param position that is itself a vector/dictionary pattern) is
+  handled the same way old wisp's `fn` did it -- see `def*` below."
+  [params]
+  (loop [remaining (seq params)
+         mode :required
+         names []
+         defaults []]
+    (if (empty? remaining)
+      {:names names :defaults defaults}
+      (let [x (first remaining), xs (rest remaining)]
+        (cond
+          (= x '&optional) (recur xs :optional names defaults)
+          (= x '&rest) (recur xs :rest names defaults)
+          (identical? mode :rest) (recur xs mode (conj names '& x) defaults)
+          (and (identical? mode :optional) (list? x))
+          (recur xs mode (conj names (first x))
+                 (conj defaults [(first x) (second x)]))
+          :else (recur xs mode (conj names x) defaults))))))
 
-  Defines a function
+(defn expand-lambda
+  "(lambda (params*) exprs*)
+   (lambda name (params*) exprs*)
 
-  Depends on dictionary?, dictionary, vec, get"
+  params => positional-params* , or positional-params* &optional
+  (opt default?)* &rest next-param
+
+  Compiles to a named `function` expression -- keeps `this`,
+  `arguments`, and named self-recursion. Multi-arity clauses
+  ((params1*) body1*) ((params2*) body2*) -- Clojure-wisp's arity
+  overloading -- are not yet supported for new-syntax: that call is
+  deferred to the Phase-3 arity-overloading checkpoint (ticket #5)."
   [& args]
   (let [name (if (symbol? (first args)) (first args))
-        defs (if name (rest args) args)
-        mkfn #(if name `(fn* ~name ~@%) `(fn* ~@%))
-        def* (fn [args & body]
-               (let [indices (bind-indices* args), names (bind-names* indices)]
-                 (if (empty? names)
-                   (cons args body)
-                   `(~(vec (map-indexed #(get names %1 %2) args))
-                      (let ~(vec (mapcat (fn [i] [(aget args i) (aget names i)])
-                                         indices))
-                        ~@body)))))]
-    (if (vector? (first defs))
-      (mkfn (apply def* defs))
-      (mkfn (map #(apply def* (vec %)) defs)))))
-(install-macro :fn expand-fn)
+        defs (if name (rest args) args)]
+    (if (and (list? (first defs))
+             (list? (first (first defs))))
+      (throw (Error (str "lambda: multi-arity clauses are not supported "
+                         "in new-syntax yet -- ticket #5's arity-overloading "
+                         "question is still open")))
+      (let [params (first defs)
+            body (rest defs)
+            parsed (parse-arglist params)
+            indices (bind-indices* (:names parsed))
+            binds (bind-names* indices)
+            argv (vec (map-indexed #(get binds %1 %2) (:names parsed)))
+            destructuring (if (empty? binds)
+                            []
+                            [`(let** ~(destructure (vec (mapcat (fn [i] [(nth (:names parsed) i) (nth binds i)])
+                                                                indices)))
+                                ~@body)])
+            defaulting (map (fn [d] `(if (nil? ~(first d)) (set! ~(first d) ~(second d))))
+                            (:defaults parsed))
+            body* (if (empty? destructuring)
+                    (concat defaulting body)
+                    (concat defaulting destructuring))]
+        (if name
+          `(fn* ~name ~argv ~@body*)
+          `(fn* ~argv ~@body*))))))
+(install-macro! :lambda expand-lambda)
 
 (defn expand-loop
   "Evaluates the exprs in a lexical context in which the symbols in
@@ -810,10 +882,10 @@
                    %2)]
     (if (empty? names)
       `(loop* ~bindings ~@body)
-      `(let ~(vec (apply concat (map-indexed get* pairs)))
+      `(let** ~(vec (apply concat (map-indexed get* pairs)))
          (loop* ~(vec (apply concat (map-indexed #(let [x (get names %1 (first %2))] [x x])
                                                  pairs)))
-           (let ~(vec (mapcat (fn [i] [(first (aget pairs i)) (aget names i)])
+           (let** ~(vec (mapcat (fn [i] [(first (aget pairs i)) (aget names i)])
                               indices))
              ~@body))))))
 (install-macro :loop expand-loop)

@@ -60,7 +60,7 @@
 (defn ^boolean whitespace?
   "Checks whether a given character is whitespace"
   [ch]
-  (or (breaking-whitespace? ch) (identical? "," ch)))
+  (breaking-whitespace? ch))
 
 (defn ^boolean numeric?
  "Checks whether a given character is numeric"
@@ -360,7 +360,7 @@
   (String. (read-char reader)))
 
 (defn read-unquote
-  "Reads unquote form ~form or ~(foo bar)"
+  "Reads unquote form ,form or ,(foo bar)"
   [reader]
   (let [ch (peek-char reader)]
     (if (not ch)
@@ -410,21 +410,6 @@
           (rest name)) ;; namespaced keyword using default
         (keyword ns name)))))
 
-(defn desugar-meta
-  [form]
-  ;; keyword should go before string since it is a string.
-  (cond (keyword? form) (dictionary (name form) true)
-        (symbol? form) {:tag form}
-        (string? form) {:tag form}
-        (dictionary? form) (reduce (fn [result pair]
-                                     (set! (get result
-                                                (name (first pair)))
-                                           (second pair))
-                                     result)
-                                   {}
-                                   form)
-        :else form))
-
 (defn wrapping-reader
   [prefix]
   (fn [reader]
@@ -434,21 +419,6 @@
   [msg]
   (fn [reader]
     (reader-error reader msg)))
-
-(defn read-meta
-  [reader _]
-  (let [metadata (desugar-meta (read reader true nil true))]
-    (if (not (dictionary? metadata))
-      (reader-error reader "Metadata must be Symbol, Keyword, String or Map"))
-    (let [form (read reader true nil true)]
-      (if (object? form)
-        (with-meta form (conj metadata (meta form)))
-        ;(reader-error
-        ; reader "Metadata can only be applied to IWithMetas")
-
-        form ; For now we don't throw errors as we can't apply metadata to
-             ; symbols, so we just ignore it.
-        ))))
 
 (defn read-regex
   [reader]
@@ -461,40 +431,6 @@
                                (read-char reader))
      (identical? "\"" ch) (re-pattern buffer)
      :default (recur (str buffer ch) (read-char reader)))))
-
-(defn read-param
-  [reader initch]
-  (let [form (read-symbol reader initch)]
-    (if (= form (symbol "%")) (symbol "%1") form)))
-
-(defn param? [form]
-  (and (symbol? form) (identical? \% (first (name form)))))
-
-(defn lambda-params-hash [form]
-  (cond (param? form) (dictionary form form)
-        (or (dictionary? form)
-            (vector? form)
-            (list? form)) (apply conj
-                                 (map lambda-params-hash (vec form)))
-        :else {}))
-
-(defn lambda-params [body]
-  (let [names (sort (vals (lambda-params-hash body)))
-        variadic (= (first names) (symbol "%&"))
-        n (cond (and variadic (identical? (count names) 1)) 0
-                (identical? (count names) 0)                0
-                :else                                       (parseInt (rest (name (last names)))))
-        params (loop [names []
-                      i 1]
-                (if (<= i n)
-                  (recur (conj names (symbol (str "%" i))) (inc i))
-                  names))]
-    (if variadic (conj params '& '%&) names)))
-
-(defn read-lambda
-  [reader]
-   (let [body (read-list reader)]
-    (list 'fn (lambda-params body) body)))
 
 (defn read-discard
   "Discards next form"
@@ -510,16 +446,14 @@
    (identical? c ";") read-comment
    (identical? c \') (wrapping-reader 'quote)
    (identical? c \@) (wrapping-reader 'deref)
-   (identical? c \^) read-meta
    (identical? c \`) (wrapping-reader 'syntax-quote)
-   (identical? c \~) read-unquote
+   (identical? c \,) read-unquote
    (identical? c \() read-list
    (identical? c \)) read-unmatched-delimiter
    (identical? c \[) read-vector
    (identical? c \]) read-unmatched-delimiter
    (identical? c \{) read-map
    (identical? c \}) read-unmatched-delimiter
-   (identical? c \%) read-param
    (identical? c \#) read-dispatch
    :else nil))
 
@@ -527,7 +461,6 @@
 (defn dispatch-macros [s]
   (cond
    (identical? s \{) read-set
-   (identical? s \() read-lambda
    (identical? s \<) (throwing-reader "Unreadable form")
    (identical? s "\"") read-regex
    (identical? s \!) read-comment

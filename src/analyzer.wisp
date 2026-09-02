@@ -6,7 +6,7 @@
                                    empty? map vec every? concat
                                    first second third rest last
                                    butlast interleave cons count
-                                   some assoc reduce filter seq?]]
+                                   some assoc reduce filter seq? drop]]
             [wisp.runtime :refer [nil? dictionary? vector? keys
                                   vals string? number? boolean?
                                   date? re-pattern? even? = max
@@ -76,9 +76,15 @@
                                                            :env {}}}"
   [env form]
   (let [forms (rest form)
+        ;; Emacs-Lisp shape: the else TAIL (everything after the
+        ;; consequent) is an implicit `progn`, not just a single form.
+        else-tail (drop 2 forms)
+        else-form (cond (empty? else-tail) nil
+                        (identical? (count else-tail) 1) (first else-tail)
+                        :else (cons 'progn else-tail))
         test (analyze env (first forms))
         consequent (analyze env (second forms))
-        alternate (analyze env (third forms))]
+        alternate (analyze env else-form)]
     (if (< (count forms) 2)
       (syntax-error "Malformed if expression, too few operands" form))
     {:op :if
@@ -202,8 +208,15 @@
   ([id doc init] {:id id :doc doc :init init}))
 
 (defn analyze-def
+  "Backs `defvar`/`defvar-`/`defconst`/`defconst-`. Privacy (whether the
+  binding lands on `exports`) is decided by which of those four head
+  symbols was used -- a trailing `-` means private -- rather than by
+  `^:private` reader metadata, which new-syntax drops entirely."
   [env form]
-  (let [params (apply parse-def (vec (rest form)))
+  (let [op (name (first form))
+        private (or (identical? op "defvar-")
+                    (identical? op "defconst-"))
+        params (apply parse-def (vec (rest form)))
         id (:id params)
         metadata (meta id)
 
@@ -218,9 +231,12 @@
      :id binding
      :init init
      :export (and (:top env)
-                  (not (:private metadata)))
+                  (not private))
      :form form}))
-(install-special! :def analyze-def)
+(install-special! :defvar analyze-def)
+(install-special! :defvar- analyze-def)
+(install-special! :defconst analyze-def)
+(install-special! :defconst- analyze-def)
 
 (defn analyze-do
   [env form]
@@ -228,7 +244,7 @@
         body (analyze-block env expressions)]
     (conj body {:op :do
                 :form form})))
-(install-special! :do analyze-do)
+(install-special! :progn analyze-do)
 
 (defn analyze-symbol
   "Symbol analyzer also does syntax desugaring for the symbols
@@ -377,7 +393,13 @@
 (defn analyze-let
   [env form]
   (analyze-let* env form false))
-(install-special! :let* analyze-let)
+;; `let**` is the post-macroexpansion internal binding form (flat vector of
+;; name/init pairs, sequential) -- analogous to `fn*`/`loop*`. New-syntax's
+;; user-facing `let`/`let*` (paren-list bindings) are expander macros that
+;; both lower to this form; keeping the internal key distinct from the
+;; public `let*` spelling avoids the macroexpander re-expanding its own
+;; output.
+(install-special! :let** analyze-let)
 
 (defn analyze-loop
   [env form]
