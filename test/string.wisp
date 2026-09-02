@@ -1,8 +1,8 @@
 (ns wisp.test.string
   (:require [wisp.test.util :refer [is thrown?]]
-            [wisp.src.string :refer [join split replace]]
-            [wisp.src.sequence :refer [list]]
-            [wisp.src.runtime :refer [str =]]))
+            [wisp.string :refer [join split replace]]
+            [wisp.sequence :refer [list]]
+            [wisp.runtime :refer [str =]]))
 
 
 (is (= (join nil) ""))
