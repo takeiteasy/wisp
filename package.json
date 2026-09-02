@@ -1,0 +1,8 @@
+{
+  "name": "wisp-stage-0",
+  "version": "0.13.0",
+  "private": true,
+  "description": "Prebuilt stage-0 wisp compiler generated from src/*.wisp on master by `make bootstrap-refresh`. Do not edit by hand.",
+  "main": "./wisp.js",
+  "bin": { "wisp": "./bin/wisp.js" }
+}
