@@ -468,43 +468,41 @@
 
 (defn- build-defun
   "Shared implementation of `defun`/`defun-`: (defvar id (lambda id
-  params* body*)), folding an optional doc-string/attribute-map exactly
-  as the Clojure-wisp `defn`/`defn-` pair did. `private` picks `defvar`
-  vs `defvar-` -- new-syntax has no `^:private` reader metadata, so
-  privacy is now signalled purely by which macro name was used."
-  [private &form name doc+meta+body]
-  (let [doc (if (string? (first doc+meta+body))
-              (first doc+meta+body))
+  params* body*)), folding an optional doc-string into the id's
+  metadata so it never reaches the emitted body as a dead expression
+  statement. `private` picks `defvar` vs `defvar-` -- new-syntax has
+  no `^:private` reader metadata, so privacy is now signalled purely
+  by which macro name was used.
+
+  Unlike Clojure-wisp's `defn` (name doc? attr-map? [params] body*),
+  new-syntax puts the param list right after the name (Emacs Lisp
+  order): (defun name (params*) doc? body*) -- so the docstring, when
+  present, is the first element of body, not the last element before
+  it."
+  [private &form name params doc+body]
+  (let [doc (if (and (string? (first doc+body)) (not (empty? (rest doc+body))))
+              (first doc+body))
 
         ;; If docstring is found it's not part of body.
-        meta+body (if doc (rest doc+meta+body) doc+meta+body)
+        body (if doc (rest doc+body) doc+body)
 
-        ;; defun may contain attribute list after
-        ;; docstring or a name, in which case it's
-        ;; merged into name metadata.
-        metadata (if (dictionary? (first meta+body))
-                   (conj {:doc doc} (first meta+body)))
+        ;; Combine the doc metadata and add to a name.
+        id (with-meta name (conj (or (meta name) {}) {:doc doc}))
 
-        ;; If metadata map is found it's not part of body.
-        body (if metadata (rest meta+body) meta+body)
-
-        ;; Combine all the metadata and add to a name.
-        id (with-meta name (conj (or (meta name) {}) metadata))
-
-        fn (with-meta `(lambda ~id ~@body) (meta &form))
+        fn (with-meta `(lambda ~id ~params ~@body) (meta &form))
         def-op (if private 'defvar- 'defvar)]
     (list def-op id fn)))
 
 (defn expand-defun
-  "(defun name (params*) exprs*) => (defvar name (lambda name params* exprs*))"
-  [&form name & doc+meta+body]
-  (build-defun false &form name doc+meta+body))
+  "(defun name (params*) doc? exprs*) => (defvar name (lambda name params* exprs*))"
+  [&form name params & doc+body]
+  (build-defun false &form name params doc+body))
 (install-macro! :defun (with-meta expand-defun {:implicit [:&form]}))
 
 (defn expand-defun-
   "Same as `defun` but not exported (see `build-defun`)."
-  [&form name & doc+meta+body]
-  (build-defun true &form name doc+meta+body))
+  [&form name params & doc+body]
+  (build-defun true &form name params doc+body))
 (install-macro! :defun- (with-meta expand-defun- {:implicit [:&form]}))
 
 (defn expand-defconst
