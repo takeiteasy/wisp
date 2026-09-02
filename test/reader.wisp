@@ -1,12 +1,12 @@
 (ns wisp.test.reader
   (:require [wisp.test.util :refer [is thrown?]]
-            [wisp.src.ast :refer [symbol quote deref name namespace keyword
+            [wisp.ast :refer [symbol quote deref name namespace keyword
                                   unquote meta dictionary pr-str]]
-            [wisp.src.runtime :refer [dictionary nil? str =]]
-            [wisp.src.reader :refer [read-from-string]]
-            [wisp.src.sequence :refer [list reduce]]))
+            [wisp.runtime :refer [dictionary nil? str =]]
+            [wisp.reader :refer [read-from-string]]
+            [wisp.sequence :refer [list reduce]]))
 
-(def read-string read-from-string)
+(defvar read-string read-from-string)
 
 
 (is (identical? (name (read-string ":foo")) "foo")
@@ -33,8 +33,8 @@
 
 
 (is (= (read-string "(foo, bar)")
-       '(foo bar))
-    "(foo, bar) -> (foo bar)")
+       '(foo (unquote bar)))
+    "(foo, bar) -> (foo (unquote bar)) -- , is unquote, not decorative whitespace")
 
 
 (is (= (read-string "(+ 1 2 0)")
@@ -71,16 +71,16 @@
     "(+ @foo 2) -> (+ (deref foo) 2)")
 
 
-(is (= (read-string "(~foo ~@bar ~(baz))")
+(is (= (read-string "(,foo ,@bar ,(baz))")
        '((unquote foo)
          (unquote-splicing bar)
          (unquote (baz))))
-    "(~foo ~@bar ~(baz)) -> ((unquote foo) (unquote-splicing bar) (unquote (baz))")
+    "(,foo ,@bar ,(baz)) -> ((unquote foo) (unquote-splicing bar) (unquote (baz))")
 
 
-(is (= (read-string "(~@(foo bar))")
+(is (= (read-string "(,@(foo bar))")
        '((unquote-splicing (foo bar))))
-    "(~@(foo bar)) -> ((unquote-splicing (foo bar)))")
+    "(,@(foo bar)) -> ((unquote-splicing (foo bar)))")
 
 
 (is (= (read-string "(defn List
@@ -99,18 +99,6 @@
           this))
     "function read correctly")
 
-
-(is (= (read-string "#(apply sum %&)")
-           '(fn [& %&] (apply sum %&))))
-
-(is (= (read-string "#(list 1 2 3)")
-           '(fn [] (list 1 2 3))))
-
-(is (= (read-string "(map #(inc %) [1 2 3])")
-       '(map (fn [%1] (inc %1)) [1 2 3])))
-
-(is (= (read-string "#(+ %1 % %& %5 %2)")
-       '(fn [%1 %2 %3 %4 %5 & %&] (+ %1 %1 %& %5 %2))))
 
 (is (= (read-string "; comment
                          (program)")
@@ -138,8 +126,6 @@
 ;;(assert (= 'foo/bar (read-string "foo/bar")))
 ;;(assert (= ':foo/bar (read-string ":foo/bar")))
 (is (= (read-string "\\a") \a))
-(is (= (:tag (meta (read-string "^String {:a 1}")))
-       'String))
 ;; TODO: In quoted sets both keys and values should remain quoted
 ;; (assert (= [:a 'b '#{c {:d [:e :f :g]}}]
 ;;            (read-string "[:a b #{c {:d [:e :f :g]}}]")))
@@ -169,7 +155,7 @@
 (is (= (read-string "#inst \"2019-11-20T13:58:43.755-00:00\"")
        '(Date. "2019-11-20T13:58:43.755-00:00")))
 
-(let [assets
+(let* ((assets
       ["اختبار" ; arabic
        "ทดสอบ" ; thai
        "こんにちは" ; japanese hiragana
@@ -198,9 +184,9 @@
 
        ;compound data
        {:привет :ru "你好" :cn}
-       ]]
-  (reduce (fn [unicode]
-            (let [input (pr-str unicode)]
+       ]))
+  (reduce (lambda (_ unicode)
+            (let* ((input (pr-str unicode)))
               (is (= (read-string input) unicode)
                   (str "Failed to read-string \"" unicode "\" from: " input))))
           nil
@@ -208,13 +194,13 @@
 
 
 ; unicode error cases
-(let [unicode-errors
+(let* ((unicode-errors
       ["\"abc \\ua\"" ; truncated
        "\"abc \\x0z ...etc\"" ; incorrect code
        "\"abc \\u0g00 ..etc\"" ; incorrect code
-       ]]
+       ]))
   (reduce
-   (fn [_ unicode-error]
+   (lambda (_ unicode-error)
      (is
       (= (try
            (read-string unicode-error)

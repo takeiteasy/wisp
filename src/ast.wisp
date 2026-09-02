@@ -161,7 +161,7 @@
                                           (vec x)))
                            "]"))
           ((dictionary? x) (str "{"
-                               (join (str ",\n" (join (repeat (inc offset) " ")))
+                               (join (str "\n" (join (repeat (inc offset) " ")))
                                      (map (lambda (pair)
                                             (let* ((indent (join (repeat offset " ")))
                                                   (key (pr-str (first pair)
