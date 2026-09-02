@@ -24,15 +24,15 @@
             [path :refer [basename dirname join]
                   :rename {join join-path}]))
 
-(defn generate
-  [options & nodes]
-  (let [ast (apply write* nodes)
+(defun generate
+  (options &rest nodes)
+  (let* ((ast (apply write* nodes))
 
-        output (generate* ast {:file (:output-uri options)
+        (output (generate* ast {:file (:output-uri options)
                                :sourceContent (:source options)
                                :sourceMap (:source-uri options)
                                :sourceMapRoot (:source-root options)
-                               :sourceMapWithCode true})]
+                               :sourceMapWithCode true})))
 
     ;; Workaround the fact that escodegen does not yet includes source
     (.setSourceContent (:map output)
@@ -50,16 +50,16 @@
      :js-ast ast}))
 
 
-(defn expand-defmacro
-  "Like defn, but the resulting function name is declared as a
+(defun expand-defmacro
+  (&form id &rest body)
+  "Like defun, but the resulting function name is declared as a
   macro and will be used as a macro by the compiler when it is
   called."
-  [&form id & body]
-  (let [fn (with-meta `(defun ~id ~@body) (meta &form))
-        form `(progn ~fn ~id)
-        ast (analyze form)
-        code (compile ast)
-        macro (eval code)]
+  (let* ((fn (with-meta `(defun ,id ,@body) (meta &form)))
+        (form `(progn ,fn ,id))
+        (ast (analyze form))
+        (code (compile ast))
+        (macro (eval code)))
     (install-macro! id macro)
     nil))
 (install-macro! 'defmacro (with-meta expand-defmacro {:implicit [:&form]}))
