@@ -57,8 +57,6 @@ cp bin/wisp.js transitional/bin/wisp.js
 
 # path relative to src/, without .wisp extension
 OLD_SYNTAX_FILES=(
-  runtime
-  sequence
 )
 
 # path:git-ref -- git-ref is the last commit where src/<path>.wisp was
@@ -67,6 +65,8 @@ NEW_SYNTAX_FILES=(
   "reader:fde4259"
   "expander:2d8afd9"
   "analyzer:cb41919"
+  "sequence:cb41919"
+  "runtime:cb41919"
   "string:cb41919"
   "ast:13c6510"
   "compiler:cb41919"
@@ -81,7 +81,7 @@ NEW_SYNTAX_FILES=(
 )
 
 echo "== stage 0: old-syntax files, current src/, via stage-0 =="
-for f in "${OLD_SYNTAX_FILES[@]}"; do
+for f in "${OLD_SYNTAX_FILES[@]+"${OLD_SYNTAX_FILES[@]}"}"; do
   echo "  $f.wisp"
   mkdir -p "transitional/$(dirname "$f")"
   node bootstrap/wisp-bootstrap.js --source-uri "wisp/$f.wisp" \
