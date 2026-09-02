@@ -20,30 +20,31 @@
 ;; Define character that is valid JS identifier that will
 ;; be used in generated symbols to avoid conflicts
 ;; http://www.fileformat.info/info/unicode/char/f8/index.htm
-(def **unique-char** "\u00F8")
+(defvar **unique-char** "ø")
 
-(defn ->camel-join
+(defun ->camel-join
+  (prefix key)
   "Takes dash delimited name "
-  [prefix key]
   (str prefix
        (if (and (not (empty? prefix))
                 (not (empty? key)))
          (str (upper-case (get key 0)) (subs key 1))
          key)))
 
-(defn ->private-prefix
+(defun ->private-prefix
+  (id)
   "Translate private identifiers like -foo to a JS equivalent
   forms like _foo"
-  [id]
-  (let [space-delimited (join " " (split id #"-"))
-        left-trimmed (triml space-delimited)
-        n (- (count id) (count left-trimmed))]
+  (let* ((space-delimited (join " " (split id #"-")))
+        (left-trimmed (triml space-delimited))
+        (n (- (count id) (count left-trimmed))))
     (if (> n 0)
       (str (join "_" (repeat (inc n) "")) (subs id n))
       id)))
 
 
-(defn translate-identifier-word
+(defun translate-identifier-word
+  (form)
   "Translates references from clojure convention to JS:
 
   **macros**      __macros__
@@ -53,84 +54,83 @@
   number?         isNumber
   red=            redEqual
   create-server   createServer"
-  [form]
-  (def ^:private id (name form))
-  (set! id (cond (identical? id  "*") "multiply"
-                 (identical? id "/") "divide"
-                 (identical? id "+") "sum"
-                 (identical? id "-") "subtract"
-                 (identical? id "=") "equal?"
-                 (identical? id "==") "strict-equal?"
-                 (identical? id "<=") "not-greater-than"
-                 (identical? id ">=") "not-less-than"
-                 (identical? id ">") "greater-than"
-                 (identical? id "<") "less-than"
-                 (identical? id "->") "thread-first"
-                 :else id))
+  (let* ((id (name form)))
+    (setq id (cond ((identical? id  "*") "multiply")
+                   ((identical? id "/") "divide")
+                   ((identical? id "+") "sum")
+                   ((identical? id "-") "subtract")
+                   ((identical? id "=") "equal?")
+                   ((identical? id "==") "strict-equal?")
+                   ((identical? id "<=") "not-greater-than")
+                   ((identical? id ">=") "not-less-than")
+                   ((identical? id ">") "greater-than")
+                   ((identical? id "<") "less-than")
+                   ((identical? id "->") "thread-first")
+                   (else id)))
 
-  ;; **macros** ->  __macros__
-  (set! id (join "_" (split id "*")))
-  ;; foo.bar -> foo_bar
-  (set! id (join "_" (split id ".")))
-  ;; list->vector ->  listToVector
-  (set! id (if (identical? (subs id 0 2) "->")
-             (subs (join "-to-" (split id "->")) 1)
-             (join "-to-" (split id "->"))))
-  ;; set! ->  set
-  (set! id (join (split id "!")))
-  (set! id (join "$" (split id "%")))
-  (set! id (join "-equal-" (split id "=")))
-  ;; foo= -> fooEqual
-  ;(set! id (join "-equal-" (split id "="))
-  ;; foo+bar -> fooPlusBar
-  (set! id (join "-plus-" (split id "+")))
-  (set! id (join "-and-" (split id "&")))
-  ;; number? -> isNumber
-  (set! id (if (identical? (last id) "?")
-             (str "is-" (subs id 0 (dec (count id))))
-             id))
-  ;; -foo -> _foo
-  (set! id (->private-prefix id))
-  ;; create-server -> createServer
-  (set! id (reduce ->camel-join "" (split id "-")))
+    ;; **macros** ->  __macros__
+    (setq id (join "_" (split id "*")))
+    ;; foo.bar -> foo_bar
+    (setq id (join "_" (split id ".")))
+    ;; list->vector ->  listToVector
+    (setq id (if (identical? (subs id 0 2) "->")
+               (subs (join "-to-" (split id "->")) 1)
+               (join "-to-" (split id "->"))))
+    ;; set! ->  set
+    (setq id (join (split id "!")))
+    (setq id (join "$" (split id "%")))
+    (setq id (join "-equal-" (split id "=")))
+    ;; foo= -> fooEqual
+    ;(setq id (join "-equal-" (split id "=")))
+    ;; foo+bar -> fooPlusBar
+    (setq id (join "-plus-" (split id "+")))
+    (setq id (join "-and-" (split id "&")))
+    ;; number? -> isNumber
+    (setq id (if (identical? (last id) "?")
+               (str "is-" (subs id 0 (dec (count id))))
+               id))
+    ;; -foo -> _foo
+    (setq id (->private-prefix id))
+    ;; create-server -> createServer
+    (setq id (reduce ->camel-join "" (split id "-")))
 
-  ;; residual sweep: the sugar above only rewrites `?`/`>`/`<`/`/` in specific
-  ;; positions (a trailing `?`, or the char standing alone). Anything left over
-  ;; -- `x?y`, `?foo`, `a>b` -- is still an invalid JS identifier, so map each
-  ;; surviving character to a ClojureScript-style munge fragment.
-  (set! id (join "_QMARK_" (split id "?")))
-  (set! id (join "_GT_" (split id ">")))
-  (set! id (join "_LT_" (split id "<")))
-  (set! id (join "_SLASH_" (split id "/")))
+    ;; residual sweep: the sugar above only rewrites `?`/`>`/`<`/`/` in specific
+    ;; positions (a trailing `?`, or the char standing alone). Anything left over
+    ;; -- `x?y`, `?foo`, `a>b` -- is still an invalid JS identifier, so map each
+    ;; surviving character to a ClojureScript-style munge fragment.
+    (setq id (join "_QMARK_" (split id "?")))
+    (setq id (join "_GT_" (split id ">")))
+    (setq id (join "_LT_" (split id "<")))
+    (setq id (join "_SLASH_" (split id "/")))
 
-  id)
+    id))
 
-(defn translate-identifier
-  [form]
-  (let [ns (namespace form)]
+(defun translate-identifier
+  (form)
+  (let* ((ns (namespace form)))
     (str (if (and ns (not (= ns "js")))
            (str (translate-identifier-word (namespace form)) ".")
            "")
          (join \. (map translate-identifier-word (split (name form) \.))))))
 
-(defn error-arg-count
-  [callee n]
+(defun error-arg-count
+  (callee n)
   (throw (SyntaxError (str "Wrong number of arguments (" n ") passed to: " callee))))
 
-(defn inherit-location
-  [body]
-  (let [start (:start (:loc (first body)))
-        end (:end (:loc (last body)))]
+(defun inherit-location
+  (body)
+  (let* ((start (:start (:loc (first body))))
+        (end (:end (:loc (last body)))))
     (if (not (or (nil? start) (nil? end)))
       {:start start :end end})))
 
 
-(defn write-location
-  [form original]
-  (let [data (meta form)
-        inherited (meta original)
-        start (or (:start form) (:start data) (:start inherited))
-        end (or (:end form) (:end data) (:end inherited))]
+(defun write-location
+  (form original)
+  (let* ((data (meta form))
+        (inherited (meta original))
+        (start (or (:start form) (:start data) (:start inherited)))
+        (end (or (:end form) (:end data) (:end inherited))))
     (if (not (nil? start))
       {:loc {:start {:line (inc (:line start -1))
                      :column (:column start -1)}
@@ -138,50 +138,50 @@
                    :column (:column end -1)}}}
       {})))
 
-(def **writers** {})
-(defn install-writer!
-  [op writer]
-  (set! (get **writers** op) writer))
+(defvar **writers** {})
+(defun install-writer!
+  (op writer)
+  (setf (get **writers** op) writer))
 
-(defn write-op
-  [op form]
-  (let [writer (get **writers** op)]
+(defun write-op
+  (op form)
+  (let* ((writer (get **writers** op)))
     (assert writer (str "Unsupported operation: " op))
     (conj (write-location (:form form) (:original-form form))
           (writer form))))
 
-(def **specials** {})
-(defn install-special!
-  [op writer]
-  (set! (get **specials** (name op)) writer))
+(defvar **specials** {})
+(defun install-special!
+  (op writer)
+  (setf (get **specials** (name op)) writer))
 
-(defn write-special
-  [writer form]
+(defun write-special
+  (writer form)
   (conj (write-location (:form form) (:original-form form))
         (apply writer (:params form))))
 
 
-(defn write-nil
-  [form]
+(defun write-nil
+  (form)
   {:type :Literal
    :value null})
 (install-writer! :nil write-nil)
 
-(defn write-literal
-  [form]
+(defun write-literal
+  (form)
   {:type :Literal
    :value form})
 
-(defn write-list
-  [form]
+(defun write-list
+  (form)
   {:type :CallExpression
    :callee (write {:op :var
                    :form 'list})
    :arguments (map write (:items form))})
 (install-writer! :list write-list)
 
-(defn write-symbol
-  [form]
+(defun write-symbol
+  (form)
   {:type :CallExpression
    :callee (write {:op :var
                    :form 'symbol})
@@ -189,24 +189,24 @@
                (write-constant (:name form))]})
 (install-writer! :symbol write-symbol)
 
-(defn write-constant
-  [form]
-  (cond (nil? form) (write-nil form)
-        (keyword? form) (write-literal (if (namespace form)
+(defun write-constant
+  (form)
+  (cond ((nil? form) (write-nil form))
+        ((keyword? form) (write-literal (if (namespace form)
                                          (str (namespace form) "/" (name form))
-                                         (name form)))
-        (number? form) (write-number (.valueOf form))
-        (string? form) (write-string form)
-        :else (write-literal form)))
-(install-writer! :constant #(write-constant (:form %)))
+                                         (name form))))
+        ((number? form) (write-number (.valueOf form)))
+        ((string? form) (write-string form))
+        (else (write-literal form))))
+(install-writer! :constant (lambda (%) (write-constant (:form %))))
 
-(defn write-string
-  [form]
+(defun write-string
+  (form)
   {:type :Literal
    :value (str form)})
 
-(defn write-number
-  [form]
+(defun write-number
+  (form)
   (if (< form 0)
     {:type :UnaryExpression
      :operator :-
@@ -214,33 +214,34 @@
      :argument (write-number (* form -1))}
     (write-literal form)))
 
-(defn write-keyword
-  [form]
+(defun write-keyword
+  (form)
   {:type :Literal
    :value (:form form)})
 (install-writer! :keyword write-keyword)
 
-(defn ->identifier
-  [form]
+(defun ->identifier
+  (form)
   {:type :Identifier
    :name (translate-identifier form)})
 
-(defn write-binding-var
-  [form]
+(defun write-binding-var
+  (form)
   ;; If identifiers binding shadows other binding rename it according
   ;; to shadowing depth. This allows bindings initializer safely
   ;; access binding before shadowing it.
-  (let [base-id (:id form)
-        resolved-id (if (:shadow form)
+  (let* ((base-id (:id form))
+        (resolved-id (if (:shadow form)
                       (symbol nil
                               (str (translate-identifier base-id)
                                    **unique-char**
                                    (:depth form)))
-             base-id)]
+             base-id)))
     (conj (->identifier resolved-id)
           (write-location base-id))))
 
-(defn write-var
+(defun write-var
+  (node)
   "handler for {:op :var} type forms. Such forms may
   represent references in which case they have :info
   pointing to a declaration :var which way be either
@@ -251,7 +252,6 @@
   :depth property with a depth of shadowing, that is used
   to for renaming logic to avoid name collisions in forms
   like let that allow same named bindings."
-  [node]
   (if (= :binding (:type (:binding node)))
     (conj (write-binding-var (:binding node))
           (write-location (:form node)))
@@ -260,27 +260,27 @@
 (install-writer! :var write-var)
 (install-writer! :param write-var)
 
-(defn write-invoke
-  [form]
+(defun write-invoke
+  (form)
   {:type :CallExpression
    :callee (write (:callee form))
    :arguments (map write (:params form))})
 (install-writer! :invoke write-invoke)
 
-(defn write-vector
-  [form]
+(defun write-vector
+  (form)
   {:type :ArrayExpression
    :elements (map write (:items form))})
 (install-writer! :vector write-vector)
 
-(defn write-dictionary
-  [form]
-  (let [properties (partition 2 (interleave (:keys form)
-                                            (:values form)))]
+(defun write-dictionary
+  (form)
+  (let* ((properties (partition 2 (interleave (:keys form)
+                                            (:values form)))))
     {:type :ObjectExpression
-     :properties (map (fn [pair]
-                        (let [key (first pair)
-                              value (second pair)]
+     :properties (map (lambda (pair)
+                        (let* ((key (first pair))
+                              (value (second pair)))
                           {:kind :init
                            :type :Property
                            :key (if (= :symbol (:op key))
@@ -290,8 +290,8 @@
                       properties)}))
 (install-writer! :dictionary write-dictionary)
 
-(defn write-export
-  [form]
+(defun write-export
+  (form)
   (write {:op :set!
           :target {:op :member-expression
                    :computed false
@@ -302,8 +302,8 @@
           :value (:init form)
           :form (:form (:id form))}))
 
-(defn write-def
-  [form]
+(defun write-def
+  (form)
   (conj {:type :VariableDeclaration
          :kind :var
          :declarations [(conj {:type :VariableDeclarator
@@ -315,10 +315,10 @@
         (write-location (:form form) (:original-form form))))
 (install-writer! :def write-def)
 
-(defn write-binding
-  [form]
-  (let [id (write-binding-var form)
-        init (write (:init form))]
+(defun write-binding
+  (form)
+  (let* ((id (write-binding-var form))
+        (init (write (:init form))))
     {:type :VariableDeclaration
      :kind :var
      :loc (inherit-location [id init])
@@ -327,30 +327,30 @@
                      :init init}]}))
 (install-writer! :binding write-binding)
 
-(defn write-throw
-  [form]
+(defun write-throw
+  (form)
   (->expression (conj {:type :ThrowStatement
                        :argument (write (:throw form))}
                       (write-location (:form form) (:original-form form)))))
 (install-writer! :throw write-throw)
 
-(defn write-new
-  [form]
+(defun write-new
+  (form)
   {:type :NewExpression
    :callee (write (:constructor form))
    :arguments (map write (:params form))})
 (install-writer! :new write-new)
 
-(defn write-set!
-  [form]
+(defun write-set!
+  (form)
   {:type :AssignmentExpression
    :operator :=
    :left (write (:target form))
    :right (write (:value form))})
 (install-writer! :set! write-set!)
 
-(defn write-aget
-  [form]
+(defun write-aget
+  (form)
   {:type :MemberExpression
    :computed (:computed form)
    :object (write (:target form))
@@ -360,7 +360,7 @@
 ;; Map of statement AST node that are generated
 ;; by a writer. Used to decet weather node is
 ;; statement or expression.
-(def **statements** {:EmptyStatement true :BlockStatement true
+(defvar **statements** {:EmptyStatement true :BlockStatement true
                      :ExpressionStatement true :IfStatement true
                      :LabeledStatement true :BreakStatement true
                      :ContinueStatement true :SwitchStatement true
@@ -371,15 +371,15 @@
                      :LetStatement true :VariableDeclaration true
                      :FunctionDeclaration true})
 
-(defn write-statement
+(defun write-statement
+  (form)
   "Wraps expression that can't be in a block statement
   body into :ExpressionStatement otherwise returns back
   expression."
-  [form]
   (->statement (write form)))
 
-(defn ->statement
-  [node]
+(defun ->statement
+  (node)
   (if (get **statements** (:type node))
     node
     {:type :ExpressionStatement
@@ -387,13 +387,14 @@
      :loc (:loc node)
      }))
 
-(defn ->return
-  [form]
+(defun ->return
+  (form)
   (conj {:type :ReturnStatement
          :argument (write form)}
         (write-location (:form form) (:original-form form))))
 
-(defn write-body
+(defun write-body
+  (form)
   "Takes form that may contain `:statements` vector
   or `:result` form  and returns vector expression
   nodes that can be used in any block. If `:result`
@@ -422,18 +423,17 @@
                  :right {:type :Identifier :name :y}}}
    {:type :ReturnStatement
     :argument {:type :Identifier :name :x}}]"
-  [form]
-  (let [statements (map write-statement
-                        (or (:statements form) []))
-        result (if (:result form)
-                 (->return (:result form)))]
+  (let* ((statements (map write-statement
+                        (or (:statements form) [])))
+        (result (if (:result form)
+                 (->return (:result form)))))
 
     (if result
       (conj statements result)
       statements)))
 
-(defn ->block
-  [body]
+(defun ->block
+  (body)
   (if (vector? body)
     {:type :BlockStatement
      :body body
@@ -442,8 +442,8 @@
      :body [body]
      :loc (:loc body)}))
 
-(defn ->expression
-  [& body]
+(defun ->expression
+  (&rest body)
   {:type :CallExpression
    :arguments []
    :loc (inherit-location body)
@@ -456,8 +456,8 @@
                          :rest nil
                          :body (->block body)}])})
 
-(defn write-do
-  [form]
+(defun write-do
+  (form)
   (if (:block (meta (first (:form form))))
     (->block (write-body (conj form {:result nil
                                      :statements (conj (:statements form)
@@ -465,18 +465,18 @@
     (apply ->expression (write-body form))))
 (install-writer! :do write-do)
 
-(defn write-if
-  [form]
+(defun write-if
+  (form)
   {:type :ConditionalExpression
    :test (write (:test form))
    :consequent (write (:consequent form))
    :alternate (write (:alternate form))})
 (install-writer! :if write-if)
 
-(defn write-try
-  [form]
-  (let [handler (:handler form)
-        finalizer (:finalizer form)]
+(defun write-try
+  (form)
+  (let* ((handler (:handler form))
+        (finalizer (:finalizer form)))
     (->expression (conj {:type :TryStatement
                          :guardedHandlers []
                          :block (->block (write-body (:body form)))
@@ -485,40 +485,40 @@
                                        :param (write (:name handler))
                                        :body (->block (write-body handler))}]
                                      [])
-                         :finalizer (cond finalizer (->block (write-body finalizer))
-                                          (not handler) (->block [])
-                                          :else nil)}
+                         :finalizer (cond (finalizer (->block (write-body finalizer)))
+                                          ((not handler) (->block []))
+                                          (else nil))}
                         (write-location (:form form) (:original-form form))))))
 (install-writer! :try write-try)
 
-(defn- write-binding-value
-  [form]
+(defun- write-binding-value
+  (form)
   (write (:init form)))
 
-(defn- write-binding-param
-  [form]
+(defun- write-binding-param
+  (form)
   (write-var {:form (:name form)}))
 
-(defn write-binding
-  [form]
+(defun write-binding
+  (form)
   (write {:op :def
           :var form
           :init (:init form)
           :form form}))
 
-(defn write-let
-  [form]
-  (let [body (conj form
+(defun write-let
+  (form)
+  (let* ((body (conj form
                    {:statements (vec (concat
                                       (:bindings form)
-                                      (:statements form)))})]
+                                      (:statements form)))})))
     (->iife (->block (write-body body)))))
 (install-writer! :let write-let)
 
-(defn ->rebind
-  [form]
-  (loop [result []
-         bindings (:bindings form)]
+(defun ->rebind
+  (form)
+  (loop ((result [])
+         (bindings (:bindings form)))
     (if (empty? bindings)
       result
       (recur (conj result
@@ -533,13 +533,13 @@
                                        :value (count result)}}})
              (rest bindings)))))
 
-(defn ->sequence
-  [expressions]
+(defun ->sequence
+  (expressions)
   {:type :SequenceExpression
    :expressions expressions})
 
-(defn ->iife
-  [body id]
+(defun ->iife
+  (body id)
   {:type :CallExpression
    :arguments [{:type :ThisExpression}]
    :callee {:type :MemberExpression
@@ -555,8 +555,8 @@
             :property {:type :Identifier
                        :name :call}}})
 
-(defn ->loop-init
-  []
+(defun ->loop-init
+  ()
   {:type :VariableDeclaration
    :kind :var
    :declarations [{:type :VariableDeclarator
@@ -565,21 +565,21 @@
                    :init {:type :Identifier
                           :name :loop}}]})
 
-(defn ->do-while
- [body test]
+(defun ->do-while
+ (body test)
  {:type :DoWhileStatement
   :body body
   :test test})
 
-(defn ->set!-recur
-  [form]
+(defun ->set!-recur
+  (form)
   {:type :AssignmentExpression
    :operator :=
    :left {:type :Identifier :name :recur}
    :right (write form)})
 
-(defn ->loop
-  [form]
+(defun ->loop
+  (form)
   (->sequence (conj (->rebind form)
                     {:type :BinaryExpression
                      :operator :===
@@ -589,29 +589,29 @@
                              :name :loop}})))
 
 
-(defn write-loop
-  [form]
-  (let [statements (:statements form)
-        result (:result form)
-        bindings (:bindings form)
+(defun write-loop
+  (form)
+  (let* ((statements (:statements form))
+        (result (:result form))
+        (bindings (:bindings form))
 
-        loop-body (conj (map write-statement statements)
-                        (->statement (->set!-recur result)))
-        body (concat [(
+        (loop-body (conj (map write-statement statements)
+                        (->statement (->set!-recur result))))
+        (body (concat [(
                        ->loop-init)]
                      (map write bindings)
                      [(->do-while (->block (vec loop-body))
                                   (->loop form))]
                      [{:type :ReturnStatement
                        :argument {:type :Identifier
-                                  :name :recur}}])]
+                                  :name :recur}}])))
     (->iife (->block (vec body)) 'loop)))
 (install-writer! :loop write-loop)
 
-(defn ->recur
-  [form]
-  (loop [result []
-         params (:params form)]
+(defun ->recur
+  (form)
+  (loop ((result [])
+         (params (:params form)))
     (if (empty? params)
       result
       (recur (conj result
@@ -626,15 +626,15 @@
                                       :value (count result)}}})
              (rest params)))))
 
-(defn write-recur
-  [form]
+(defun write-recur
+  (form)
   (->sequence (conj (->recur form)
                     {:type :Identifier
                      :name :loop})))
 (install-writer! :recur write-recur)
 
-(defn fallback-overload
-  []
+(defun fallback-overload
+  ()
   {:type :SwitchCase
    :test nil
    :consequent [{:type :ThrowStatement
@@ -644,8 +644,8 @@
                             :arguments [{:type :Literal
                                          :value "Wrong number of arguments passed"}]}}]})
 
-(defn splice-binding
-  [form]
+(defun splice-binding
+  (form)
   {:op :def
    :id (last (:params form))
    :init {:op :invoke
@@ -657,9 +657,9 @@
                     :form (:arity form)
                     :type :number}]}})
 
-(defn write-overloading-params
-  [params]
-  (reduce (fn [forms param]
+(defun write-overloading-params
+  (params)
+  (reduce (lambda (forms param)
             (conj forms {:op :def
                          :id param
                          :init {:op :member-expression
@@ -672,9 +672,9 @@
           []
           params))
 
-(defn write-overloading-fn
-  [form]
-  (let [overloads (map write-fn-overload (:methods form))]
+(defun write-overloading-fn
+  (form)
+  (let* ((overloads (map write-fn-overload (:methods form))))
     {:params []
      :body (->block {:type :SwitchStatement
                      :discriminant {:type :MemberExpression
@@ -687,45 +687,45 @@
                               overloads
                               (conj overloads (fallback-overload)))})}))
 
-(defn write-fn-overload
-  [form]
-  (let [params (:params form)
-        bindings (if (:variadic form)
+(defun write-fn-overload
+  (form)
+  (let* ((params (:params form))
+        (bindings (if (:variadic form)
                    (conj (write-overloading-params (vec (butlast params)))
                          (splice-binding form))
-                   (write-overloading-params params))
-        statements (vec (concat bindings (:statements form)))]
+                   (write-overloading-params params)))
+        (statements (vec (concat bindings (:statements form)))))
     {:type :SwitchCase
      :test (if (not (:variadic form))
              {:type :Literal
               :value (:arity form)})
      :consequent (write-body (conj form {:statements statements}))}))
 
-(defn write-simple-fn
-  [form]
-  (let [method (first (:methods form))
-        params (if (:variadic method)
+(defun write-simple-fn
+  (form)
+  (let* ((method (first (:methods form)))
+        (params (if (:variadic method)
                  (vec (butlast (:params method)))
-                 (:params method))
-        body (if (:variadic method)
+                 (:params method)))
+        (body (if (:variadic method)
                (conj method
                      {:statements (vec (cons (splice-binding method)
                                              (:statements method)))})
-               method)]
+               method)))
     {:params (map write-var params)
      :body (->block (write-body body))}))
 
-(defn resolve
-  [from to]
-  (let [requirer (split (name from) \.)
-        requirement (split (name to) \.)
-        relative? (and (not (identical? (name from)
+(defun resolve
+  (from to)
+  (let* ((requirer (split (name from) \.))
+        (requirement (split (name to) \.))
+        (relative? (and (not (identical? (name from)
                                         (name to)))
                        (identical? (first requirer)
-                                   (first requirement)))]
+                                   (first requirement)))))
     (if relative?
-      (loop [from requirer
-             to requirement]
+      (loop ((from requirer)
+             (to requirement))
         (if (identical? (first from)
                         (first to))
           (recur (rest from) (rest to))
@@ -735,17 +735,17 @@
                         to))))
       (join \/ requirement))))
 
-(defn id->ns
+(defun id->ns
+  (id)
   "Takes namespace identifier symbol and translates to new
   symbol without . special characters
   wisp.core -> wisp*core"
-  [id]
   (symbol nil (join \* (split (name id) \.))))
 
 
-(defn write-require
-  [form requirer]
-  (let [ns-binding {:op :def
+(defun write-require
+  (form requirer)
+  (let* ((ns-binding {:op :def
                     :id {:op :var
                          :type :identifier
                          :form (id->ns (:ns form))}
@@ -754,15 +754,15 @@
                                     :type :identifier
                                     :form 'require}
                            :params [{:op :constant
-                                     :form (resolve requirer (:ns form))}]}}
-        ns-alias (if (:alias form)
+                                     :form (resolve requirer (:ns form))}]}})
+        (ns-alias (if (:alias form)
                    {:op :def
                     :id {:op :var
                          :type :identifier
                          :form (id->ns (:alias form))}
-                    :init (:id ns-binding)})
+                    :init (:id ns-binding)}))
 
-        references (reduce (fn [references form]
+        (references (reduce (lambda (references form)
                              (conj references
                                    {:op :def
                                     :id {:op :var
@@ -776,17 +776,17 @@
                                                       :type :identifier
                                                       :form (:name form)}}}))
                            []
-                           (:refer form))]
+                           (:refer form))))
     (vec (cons ns-binding
                (if ns-alias
                  (cons ns-alias references)
                  references)))))
 
-(defn write-ns
-  [form]
-  (let [node (:form form)
-        requirer (:name form)
-        ns-binding {:op :def
+(defun write-ns
+  (form)
+  (let* ((node (:form form))
+        (requirer (:name form))
+        (ns-binding {:op :def
                     :original-form node
                     :id {:op :var
                          :type :identifier
@@ -808,17 +808,17 @@
                                      :form (name (:name form))}
                                     {:op :constant
                                      :original-form node
-                                     :form (:doc form)}]}}
-        requirements (vec (apply concat (map #(write-require % requirer)
-                                             (:require form))))]
+                                     :form (:doc form)}]}})
+        (requirements (vec (apply concat (map (lambda (%) (write-require % requirer))
+                                             (:require form))))))
     (->block (map write (vec (cons ns-binding requirements))))))
 (install-writer! :ns write-ns)
 
-(defn write-fn
-  [form]
-  (let [base (if (> (count (:methods form)) 1)
+(defun write-fn
+  (form)
+  (let* ((base (if (> (count (:methods form)) 1)
                (write-overloading-fn form)
-               (write-simple-fn form))]
+               (write-simple-fn form))))
     (conj base
           {:type :FunctionExpression
            :id (if (:id form) (write-var (:id form)))
@@ -828,66 +828,66 @@
            :expression false})))
 (install-writer! :fn write-fn)
 
-(defn write
-  [form]
-  (let [op (:op form)
-        writer (and (= :invoke (:op form))
+(defun write
+  (form)
+  (let* ((op (:op form))
+        (writer (and (= :invoke (:op form))
                     (= :var (:op (:callee form)))
-                    (get **specials** (name (:form (:callee form)))))]
+                    (get **specials** (name (:form (:callee form)))))))
     (if writer
       (write-special writer form)
       (write-op (:op form) form))))
 
-(defn write*
-  [& forms]
-  (let [body (map write-statement forms)]
+(defun write*
+  (&rest forms)
+  (let* ((body (map write-statement forms)))
     {:type :Program
      :body body
      :loc (inherit-location body)}))
 
 
-(defn compile
-  [& args]
+(defun compile
+  (&rest args)
   (if (identical? (count args) 1)
     (compile {} (first args))
     (generate (apply write* (rest args)) (first args))))
 
 
-(defn get-macro
-  [target property & args]
+(defun get-macro
+  (target property &rest args)
   (if (empty? args)
-    `(aget (or ~target 0)
-           ~property)
-    (let [default* (first args)]
+    `(aget (or ,target 0)
+           ,property)
+    (let* ((default* (first args)))
       (if (identical? default* nil)
-        `(get ~target ~property)
-        `(apply get ~[target property default*])))))
+        `(get ,target ,property)
+        `(apply get ,[target property default*])))))
 (install-macro! :get get-macro)
 
 ;; Logical operators
 
-(defn install-logical-operator!
-  [callee operator fallback]
-  (defn write-logical-operator
-    [& operands]
-    (let [n (count operands)]
-      (cond (= n 0) (write-constant fallback)
-            (= n 1) (write (first operands))
-            :else (reduce (fn [left right]
+(defun install-logical-operator!
+  (callee operator fallback)
+  (defun write-logical-operator
+    (&rest operands)
+    (let* ((n (count operands)))
+      (cond ((= n 0) (write-constant fallback))
+            ((= n 1) (write (first operands)))
+            (else (reduce (lambda (left right)
                             {:type :LogicalExpression
                              :operator operator
                              :left left
                              :right (write right)})
                           (write (first operands))
-                          (rest operands)))))
+                          (rest operands))))))
   (install-special! callee write-logical-operator))
 (install-logical-operator! :or :|| nil)
 (install-logical-operator! :and :&& true)
 
-(defn install-unary-operator!
-  [callee operator prefix?]
-  (defn write-unary-operator
-    [& params]
+(defun install-unary-operator!
+  (callee operator prefix?)
+  (defun write-unary-operator
+    (&rest params)
     (if (identical? (count params) 1)
       {:type :UnaryExpression
        :operator operator
@@ -901,13 +901,13 @@
 
 (install-unary-operator! :bit-not :~)
 
-(defn install-binary-operator!
-  [callee operator]
-  (defn write-binary-operator
-    [& params]
+(defun install-binary-operator!
+  (callee operator)
+  (defun write-binary-operator
+    (&rest params)
     (if (< (count params) 2)
       (error-arg-count callee (count params))
-      (reduce (fn [left right]
+      (reduce (lambda (left right)
                 {:type :BinaryExpression
                  :operator operator
                  :left left
@@ -924,64 +924,64 @@
 
 ;; Arithmetic operators
 
-(defn install-arithmetic-operator!
-  [callee operator valid? fallback]
+(defun install-arithmetic-operator!
+  (callee operator valid? fallback)
 
-  (defn write-binary-operator
-    [left right]
+  (defun write-binary-operator
+    (left right)
     {:type :BinaryExpression
      :operator (name operator)
      :left left
      :right (write right)})
 
-  (defn write-arithmetic-operator
-    [& params]
-    (let [n (count params)]
-      (cond (and valid? (not (valid? n))) (error-arg-count (name callee) n)
-            (== n 0) (write-literal fallback)
-            (== n 1) (reduce write-binary-operator
+  (defun write-arithmetic-operator
+    (&rest params)
+    (let* ((n (count params)))
+      (cond ((and valid? (not (valid? n))) (error-arg-count (name callee) n))
+            ((== n 0) (write-literal fallback))
+            ((== n 1) (reduce write-binary-operator
                              (write-literal fallback)
-                             params)
-            :else (reduce write-binary-operator
+                             params))
+            (else (reduce write-binary-operator
                           (write (first params))
-                          (rest params)))))
+                          (rest params))))))
 
 
   (install-special! callee write-arithmetic-operator))
 
 (install-arithmetic-operator! :+ :+ nil 0)
-(install-arithmetic-operator! :- :- #(>= % 1) 0)
+(install-arithmetic-operator! :- :- (lambda (%) (>= % 1)) 0)
 (install-arithmetic-operator! :* :* nil 1)
-(install-arithmetic-operator! (keyword \/) (keyword \/) #(>= % 1) 1)
-(install-arithmetic-operator! :rem (keyword \%) #(== % 2) 1)
+(install-arithmetic-operator! (keyword \/) (keyword \/) (lambda (%) (>= % 1)) 1)
+(install-arithmetic-operator! :rem (keyword \%) (lambda (%) (== % 2)) 1)
 
 
 ;; Comparison operators
 
-(defn install-comparison-operator!
+(defun install-comparison-operator!
+  (callee operator fallback)
   "Generates comparison operator writer that given one
   parameter writes `fallback` given two parameters writes
   binary expression and given more parameters writes binary
   expressions joined by logical and."
-  [callee operator fallback]
 
   ;; TODO #54
   ;; Comparison operators must use temporary variable to store
   ;; expression non literal and non-identifiers.
-  (defn write-comparison-operator
-    [& args]
-    (let [n (count args)]
-      (cond (identical? n 0) (error-arg-count callee 0)
-            (identical? n 1) (->sequence [(write (first args))
-                                          (write-literal fallback)])
-            (identical? n 2) {:type :BinaryExpression
+  (defun write-comparison-operator
+    (&rest args)
+    (let* ((n (count args)))
+      (cond ((identical? n 0) (error-arg-count callee 0))
+            ((identical? n 1) (->sequence [(write (first args))
+                                          (write-literal fallback)]))
+            ((identical? n 2) {:type :BinaryExpression
                               :operator operator
                               :left (write (first args))
-                              :right (write (second args))}
-            :else (let [left (first args)
-                        right (second args)
-                        more (rest (rest args))]
-                    (reduce (fn [left right]
+                              :right (write (second args))})
+            (else (let* ((left (first args))
+                        (right (second args))
+                        (more (rest (rest args))))
+                    (reduce (lambda (left right)
                               {:type :LogicalExpression
                                :operator :&&
                                :left left
@@ -992,7 +992,7 @@
                                                (:right left))
                                        :right (write right)}})
                             (write-comparison-operator left right)
-                            more)))))
+                            more))))))
 
   (install-special! callee write-comparison-operator))
 
@@ -1003,8 +1003,8 @@
 (install-comparison-operator! :<= :<= true)
 
 
-(defn write-identical?
-  [& params]
+(defun write-identical?
+  (&rest params)
   ;; TODO: Submit a bug for clojure to allow variadic
   ;; number of params joined by logical and.
   (if (identical? (count params) 2)
@@ -1015,15 +1015,15 @@
     (error-arg-count :identical? (count params))))
 (install-special! :identical? write-identical?)
 
-(defn write-instance?
-  [& params]
+(defun write-instance?
+  (&rest params)
   ;; TODO: Submit a bug for clojure to make sure that
   ;; instance? either accepts only two args or returns
   ;; true only if all the params are instance of the
   ;; given type.
 
-  (let [constructor (first params)
-        instance (second params)]
+  (let* ((constructor (first params))
+        (instance (second params)))
     (if (< (count params) 1)
       (error-arg-count :instance? (count params))
       {:type :BinaryExpression
@@ -1035,115 +1035,115 @@
 (install-special! :instance? write-instance?)
 
 
-(defn expand-apply
-  [f & params]
-  (let [prefix (vec (butlast params))]
+(defun expand-apply
+  (f &rest params)
+  (let* ((prefix (vec (butlast params))))
     (if (empty? prefix)
-      `(.apply ~f nil ~@params)
-      `(.apply ~f nil (.concat ~prefix ~(last params))))))
+      `(.apply ,f nil ,@params)
+      `(.apply ,f nil (.concat ,prefix ,(last params))))))
 (install-macro! :apply expand-apply)
 
 
-(defn expand-print
-  [&form & more]
+(defun expand-print
+  (&form &rest more)
   "Prints the object(s) to the output for human consumption."
-  (let [op (with-meta 'console.log (meta &form))]
-    `(~op ~@more)))
+  (let* ((op (with-meta 'console.log (meta &form))))
+    `(,op ,@more)))
 (install-macro! :print (with-meta expand-print {:implicit [:&form]}))
 
-(defn expand-str
+(defun expand-str
+  (&rest forms)
   "str inlining and optimization via macros"
-  [& forms]
-  `(+ "" ~@forms))
+  `(+ "" ,@forms))
 (install-macro! :str expand-str)
 
-(defn expand-debug
-  []
+(defun expand-debug
+  ()
   'debugger)
 (install-macro! :debugger! expand-debug)
 
-(defn expand-assert
-  ^{:doc "Evaluates expr and throws an exception if it does not evaluate to
-    logical true."}
-  [x & args]
-  (let [message (if (empty? args) "" (first args))
-        form (pr-str x)]
-    `(if (not ~x)
+(defun expand-assert
+  (x &rest args)
+  "Evaluates expr and throws an exception if it does not evaluate to
+    logical true."
+  (let* ((message (if (empty? args) "" (first args)))
+        (form (pr-str x)))
+    `(if (not ,x)
        (throw (Error (str "Assert failed: "
-                          ~message
-                          ~form))))))
+                          ,message
+                          ,form))))))
 (install-macro! :assert expand-assert)
 
 
-(defn expand-typestr [it]
-  (let [prefix "[object ", suffix "]"]
-    `(-> (.call Object.prototype.to-string ~it)
-         (.slice ~(count prefix) ~(- (count suffix))))))
+(defun expand-typestr (it)
+  (let* ((prefix "[object ") (suffix "]"))
+    `(-> (.call Object.prototype.to-string ,it)
+         (.slice ,(count prefix) ,(- (count suffix))))))
 
-(defn expand-defprotocol
-  [&env id & forms]
-  (let [ns (name (:name (:ns &env)))
-        protocol-name (name id)
-        protocol-doc (if (string? (first forms))
-                       (first forms))
-        protocol-methods (if protocol-doc
+(defun expand-defprotocol
+  (&env id &rest forms)
+  (let* ((ns (name (:name (:ns &env))))
+        (protocol-name (name id))
+        (protocol-doc (if (string? (first forms))
+                       (first forms)))
+        (protocol-methods (if protocol-doc
                            (rest forms)
-                           forms)
-        not-supported (fn [method] `#(throw (str ~(str "No protocol method " protocol-name
+                           forms))
+        (not-supported (lambda (method) `(lambda (%) (throw (str ,(str "No protocol method " protocol-name
                                                        "." method " defined for type ")
-                                                 ~(expand-typestr '%) ": " %)))
-        protocol (mapv (fn [method]
-                         (let [method-name (first method)
-                               id (id->ns (str ns "$"
+                                                 ,(expand-typestr '%) ": " %)))))
+        (protocol (mapv (lambda (method)
+                         (let* ((method-name (first method))
+                               (id (id->ns (str ns "$"
                                                protocol-name "$"
-                                               (name method-name)))]
+                                               (name method-name)))))
                            {:id method-name
-                            :fn `(fn ~id [self]
+                            :fn `(lambda ,id (self)
                                    (.apply (or (if (or (identical? self null) (identical? self nil))
-                                                 (.-nil ~id)
-                                                 (or (aget self '~id)
-                                                     (aget ~id ~(expand-typestr 'self))
-                                                     (.-_ ~id)))
-                                               ~(not-supported (name id)))
+                                                 (.-nil ,id)
+                                                 (or (aget self ',id)
+                                                     (aget ,id ,(expand-typestr 'self))
+                                                     (.-_ ,id)))
+                                               ,(not-supported (name id)))
                                            self arguments))}))
-                       protocol-methods)
-        fns (map (fn [form]
-                   `(def ~(:id form) (aget ~id '~(:id form))))
-                 protocol)
-        satisfy {:wisp_core$IProtocol$id (str ns "/" protocol-name)}
-        body (reduce (fn [body method]
+                       protocol-methods))
+        (fns (map (lambda (form)
+                   `(defvar ,(:id form) (aget ,id ',(:id form))))
+                 protocol))
+        (satisfy {:wisp_core$IProtocol$id (str ns "/" protocol-name)})
+        (body (reduce (lambda (body method)
                        (assoc body (:id method) (:fn method)))
                      satisfy
-                     protocol)]
-    `(~(with-meta 'do {:block true})
-       (def ~id ~body)
-       ~@fns
-       ~id)))
+                     protocol)))
+    `(,(with-meta 'progn {:block true})
+       (defvar ,id ,body)
+       ,@fns
+       ,id)))
 (install-macro! :defprotocol (with-meta expand-defprotocol {:implicit [:&env]}))
 
-(defn expand-deftype
-  [id fields & forms]
-  (let [type-init (map (fn [field] `(set! (aget this '~field) ~field))
-                       fields)
-        constructor (conj type-init 'this)
-        method-init (map (fn [field] `(def ~field (aget this '~field)))
-                         fields)
-        make-method (fn [protocol form]
-                      (let [method-name (first form)
-                            params (second form)
-                            body (rest (rest form))
-                            field-name (if (= (name protocol) "Object")
-                                         `(quote ~method-name)
-                                         `(.-name (aget ~protocol '~method-name)))]
+(defun expand-deftype
+  (id fields &rest forms)
+  (let* ((type-init (map (lambda (field) `(setf (aget this ',field) ,field))
+                       fields))
+        (constructor (conj type-init 'this))
+        (method-init (map (lambda (field) `(defvar ,field (aget this ',field)))
+                         fields))
+        (make-method (lambda (protocol form)
+                      (let* ((method-name (first form))
+                            (params (second form))
+                            (body (rest (rest form)))
+                            (field-name (if (= (name protocol) "Object")
+                                         `(quote ,method-name)
+                                         `(.-name (aget ,protocol ',method-name)))))
 
-                        `(set! (aget (.-prototype ~id) ~field-name)
-                               (fn ~params ~@method-init ~@body))))
-        satisfy (fn [protocol]
-                  `(set! (aget (.-prototype ~id)
-                               (.-wisp_core$IProtocol$id ~protocol))
-                         true))
+                        `(setf (aget (.-prototype ,id) ,field-name)
+                               (lambda ,params ,@method-init ,@body)))))
+        (satisfy (lambda (protocol)
+                  `(setf (aget (.-prototype ,id)
+                               (.-wisp_core$IProtocol$id ,protocol))
+                         true)))
 
-        body (reduce (fn [type form]
+        (body (reduce (lambda (type form)
                        (if (list? form)
                          (conj type
                                {:body (conj (:body type)
@@ -1156,53 +1156,53 @@
                        {:protocol nil
                         :body []}
 
-                       forms)
+                       forms))
 
-        methods (:body body)]
-    `(def ~id (do
-       (defn- ~id ~fields ~@constructor)
-       ~@methods
-       ~id))))
+        (methods (:body body)))
+    `(defvar ,id (progn
+       (defun- ,id ,fields ,@constructor)
+       ,@methods
+       ,id))))
 (install-macro! :deftype expand-deftype)
 (install-macro! :defrecord expand-deftype)
 
-(defn expand-extend-type
-  [type & forms]
-  (let [default-type? (= type 'default)
-        nil-type? (nil? type)
+(defun expand-extend-type
+  (type &rest forms)
+  (let* ((default-type? (= type 'default))
+        (nil-type? (nil? type))
 
-        type-name (cond (nil? type) (symbol "nil")
-                        (= type 'default) '_
-                        (= type 'number) 'Number
-                        (= type 'string) 'String
-                        (= type 'boolean) 'Boolean
-                        (= type 'vector) 'Array
-                        (= type 'function) 'Function
-                        (= type 're-pattern) 'RegExp
-                        (= (namespace type) "js") type
-                        :else nil)
+        (type-name (cond ((nil? type) (symbol "nil"))
+                        ((= type 'default) '_)
+                        ((= type 'number) 'Number)
+                        ((= type 'string) 'String)
+                        ((= type 'boolean) 'Boolean)
+                        ((= type 'vector) 'Array)
+                        ((= type 'function) 'Function)
+                        ((= type 're-pattern) 'RegExp)
+                        ((= (namespace type) "js") type)
+                        (else nil)))
 
-        satisfy (fn [protocol]
+        (satisfy (lambda (protocol)
                   (if type-name
-                    `(set! (aget ~protocol
-                                 '~(symbol (str "wisp_core$IProtocol$"
+                    `(setf (aget ,protocol
+                                 ',(symbol (str "wisp_core$IProtocol$"
                                                 (name type-name))))
                            true)
-                    `(set! (aget (.-prototype ~type)
-                                 (.-wisp_core$IProtocol$id ~protocol))
-                           true)))
+                    `(setf (aget (.-prototype ,type)
+                                 (.-wisp_core$IProtocol$id ,protocol))
+                           true))))
 
-        make-method (fn [protocol form]
-                      (let [method-name (first form)
-                            params (second form)
-                            body (rest (rest form))
-                            target (if type-name
-                                     `(aget (aget ~protocol '~method-name) '~type-name)
-                                     `(aget (.-prototype ~type)
-                                            (.-name (aget ~protocol '~method-name))))]
-                        `(set! ~target (fn ~params ~@body))))
+        (make-method (lambda (protocol form)
+                      (let* ((method-name (first form))
+                            (params (second form))
+                            (body (rest (rest form)))
+                            (target (if type-name
+                                     `(aget (aget ,protocol ',method-name) ',type-name)
+                                     `(aget (.-prototype ,type)
+                                            (.-name (aget ,protocol ',method-name))))))
+                        `(setf ,target (lambda ,params ,@body)))))
 
-        body (reduce (fn [body form]
+        (body (reduce (lambda (body form)
                        (if (list? form)
                          (conj body
                                {:methods (conj (:methods body)
@@ -1215,14 +1215,14 @@
                        {:protocol nil
                         :methods []}
 
-                       forms)
-        methods (:methods body)]
-    `(do ~@methods nil)))
+                       forms))
+        (methods (:methods body)))
+    `(progn ,@methods nil)))
 (install-macro! :extend-type expand-extend-type)
 
-(defn expand-extend-protocol
-  [protocol & forms]
-  (let [specs (reduce (fn [specs form]
+(defun expand-extend-protocol
+  (protocol &rest forms)
+  (let* ((specs (reduce (lambda (specs form)
                         (if (list? form)
                           (cons {:type (:type (first specs))
                                  :methods (conj (:methods (first specs))
@@ -1232,34 +1232,33 @@
                                  :methods []}
                                 specs)))
                       nil
-                      forms)
-        body (map (fn [form]
-                    `(extend-type ~(:type form)
-                       ~protocol
-                       ~@(:methods form)
+                      forms))
+        (body (map (lambda (form)
+                    `(extend-type ,(:type form)
+                       ,protocol
+                       ,@(:methods form)
                        ))
-                  specs)]
+                  specs)))
 
 
-    `(do ~@body nil)))
+    `(progn ,@body nil)))
 (install-macro! :extend-protocol expand-extend-protocol)
 
-(defn aset-expand
-  [target field third & rest-args]
+(defun aset-expand
+  (target field third &rest rest-args)
   (if (empty? rest-args)
-    `(set! (aget ~target ~field) ~third)
-    (let [sub-fields&value (cons third rest-args)
-          resolved-target (reduce (fn [form node]
-                                    `(aget ~form ~node))
-                                  `(aget ~target ~field)
-                                  (butlast sub-fields&value))
-          value (last sub-fields&value)]
-      `(set! ~resolved-target ~value))))
+    `(setf (aget ,target ,field) ,third)
+    (let* ((sub-fields&value (cons third rest-args))
+          (resolved-target (reduce (lambda (form node)
+                                    `(aget ,form ,node))
+                                  `(aget ,target ,field)
+                                  (butlast sub-fields&value)))
+          (value (last sub-fields&value)))
+      `(setf ,resolved-target ,value))))
 (install-macro! :aset aset-expand)
 
-(defn alength-expand
+(defun alength-expand
+  (array)
   "Returns the length of the array. Works on arrays of all types."
-  [array]
-  `(.-length ~array))
+  `(.-length ,array))
 (install-macro! :alength alength-expand)
-

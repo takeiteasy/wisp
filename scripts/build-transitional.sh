@@ -62,7 +62,6 @@ OLD_SYNTAX_FILES=(
   analyzer
   runtime
   sequence
-  backend/escodegen/writer
   backend/escodegen/generator
 )
 
@@ -78,6 +77,7 @@ NEW_SYNTAX_FILES=(
   "engine/node:57c1c59"
   "engine/browser:57c1c59"
   "engine/browserExport:57c1c59"
+  "backend/escodegen/writer:8cabb0f"
 )
 
 echo "== stage 0: old-syntax files, current src/, via stage-0 =="
