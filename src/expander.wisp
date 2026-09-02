@@ -568,7 +568,7 @@
   [bindings then else*]
   (let [name (first bindings), test (second bindings), sym (gensym :if-let-binding)]
     `(let** [~sym ~test]
-       (if ~sym (let** [~name ~sym] ~then) ~else*))))
+       (if ~sym (let** ~(destructure [name sym]) ~then) ~else*))))
 (install-macro :if-let expand-if-let)
 
 (defn expand-when-let
@@ -589,7 +589,7 @@
   (let [name (first bindings), test (second bindings), sym (if (symbol? name) name (gensym :if-some-binding))]
     `(let** [~sym ~test]
        (if-not (nil? ~sym)
-         (let** [~name ~sym] ~then)
+         (let** ~(destructure [name sym]) ~then)
          ~else*))))
 (install-macro :if-some expand-if-some)
 
@@ -609,7 +609,7 @@
   Depends on seq*"
   [bindings & body]
   (let [name (first bindings), test (second bindings)]
-    `(when-let [[~name] (seq* ~test)] ~@body)))
+    `(when-let ([~name] (seq* ~test)) ~@body)))
 (install-macro :when-first expand-when-first)
 
 
@@ -641,7 +641,7 @@
   [bindings & body]
   (let [name (first bindings),  n (second bindings),  sym (gensym :dotimes-binding)]
     `(let** [~sym ~n]
-       (loop [~name 0]
+       (loop ((~name 0))
          (when (< ~name ~sym)
            ~@body
            (recur (inc ~name)))))))
@@ -659,13 +659,13 @@
                   body
                   (let [m (first mods),  item (first m),  arg (second m)]
                     (recur (rest mods)
-                           (cond (= item ':let)   `(let** ~arg ~body)
+                           (cond (= item ':let)   `(let** ~(paren-bindings->vec arg) ~body)
                                  (= item ':while) `(if ~arg ~body)
                                  (= item ':when)  `(if ~arg ~body (recur (rest ~coll))))))))]
     (merge context
            {:subseq (gensym :for-subseq)
             :body   `((lambda ~iter (~coll)
-                        (lazy-seq (loop [~coll ~coll]
+                        (lazy-seq (loop ((~coll ~coll))
                                     (if-not (empty? ~coll)
                                       (let** [~(first loop) (first ~coll)] ~next)))))
                       ~(second loop))})))
@@ -681,18 +681,19 @@
          segments)))
 
 (defn expand-for
-  "List comprehension. Takes a vector of one or more
-   binding-form/collection-expr pairs, each followed by zero or more
-   modifiers, and yields a lazy sequence of evaluations of expr.
+  "List comprehension. Takes a paren clause list of one or more
+   (binding-form collection-expr) pairs, each followed by zero or more
+   modifier clauses, and yields a lazy sequence of evaluations of expr.
    Collections are iterated in a nested fashion, rightmost fastest,
    and nested coll-exprs can refer to bindings created in prior
-   binding-forms.  Supported modifiers are: :let [binding-form expr ...],
-   :while test, :when test.
-  (take 100 (for [x (infinite-range), y (infinite-range), :while (< y x)]  [x y]))
+   binding-forms.  Supported modifiers are: (:let ((binding-form expr) ...)),
+   (:while test), (:when test).
+  (take 100 (for ((x (infinite-range)) (y (infinite-range)) (:while (< y x)))  [x y]))
 
   Depends on lazy-seq, lazy-concat, empty?, first, rest, cons"
   [seq-exprs body-expr]
-  (let [iter (gensym :for-iter), coll (gensym :for-coll), parts (for-parts (partition 2 seq-exprs))]
+  (let [pairs (vec (map vec seq-exprs))
+        iter (gensym :for-iter), coll (gensym :for-coll), parts (for-parts pairs)]
     (:body (reduce #(apply for-step %1 %2)
                    {:iter iter, :coll coll, :body `(cons ~body-expr (~iter (rest ~coll)))}
                    (reverse parts)))))
@@ -874,7 +875,8 @@
 
   Depends on dictionary?, dictionary, vec, get"
   [bindings & body]
-  (let [pairs   (partition 2 bindings)
+  (let [bindings (paren-bindings->vec bindings)
+        pairs   (partition 2 bindings)
         indices (bind-indices* (mapv first pairs))
         names   (bind-names* indices)
         get*    #(if-let [x (aget names %1)]
