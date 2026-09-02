@@ -1,17 +1,17 @@
-(ns wisp.test.escodegen
+(ns wisp.test.protocols
   (:require [wisp.test.util :refer [is thrown?]]
-            [wisp.src.sequence :refer [concat cons vec take first rest
+            [wisp.sequence :refer [concat cons vec take first rest
                                        second third list list? count drop
                                        lazy-seq? seq nth map]]
-            [wisp.src.runtime :refer [subs = dec identity keys nil? vector?
+            [wisp.runtime :refer [subs = dec identity keys nil? vector?
                                       string? dec re-find satisfies?]]
-            [wisp.src.compiler :refer [compile]]
-            [wisp.src.reader :refer [read* read-from-string]
+            [wisp.compiler :refer [compile]]
+            [wisp.reader :refer [read* read-from-string]
                              :rename {read-from-string read-string}]
-            [wisp.src.ast :refer [meta name pr-str symbol]]))
+            [wisp.ast :refer [meta name pr-str symbol]]))
 
 (defprotocol INope
-  (nope? [self]))
+  (nope? (self)))
 
 (is (thrown? (nope? 1) #"method")
     "protocol isn't implemented")
@@ -20,9 +20,9 @@
 (is (not (satisfies? INope js/Number))
     "number doesn't satisfies INope")
 
-(deftype Nope [x]
+(deftype Nope (x)
   INope
-  (nope? [_] true))
+  (nope? (_) true))
 
 (is (Nope. 1)
     "Can be instantiated")
@@ -35,7 +35,7 @@
 
 (extend-type number
   INope
-  (nope? [x] true))
+  (nope? (x) true))
 
 (is (satisfies? INope 4) "numbers implement protocol")
 (is (nope? 3) "numbers implement protocol")
@@ -45,7 +45,7 @@
 
 (extend-type default
   INope
-  (nope? [_] false))
+  (nope? (_) false))
 
 (is (satisfies? INope "foo")
     "everything satisfies protocol now")
@@ -60,16 +60,16 @@
     "default implementation")
 
 (defprotocol IType
-  (-type [x]))
+  (-type (x)))
 
-(defn satisfaction
-  [protocol]
+(defun satisfaction
+  (protocol)
   {:nil (satisfies? protocol nil)
    :boolean (satisfies? protocol true)
    :number (satisfies? protocol 1)
    :string (satisfies? protocol "foo")
    :pattern (satisfies? protocol #"foo")
-   :fn (satisfies? protocol (fn [x] x))
+   :fn (satisfies? protocol (lambda (x) x))
    :vector (satisfies? protocol [1 2 3])
    :object (satisfies? protocol {})})
 
@@ -86,7 +86,7 @@
 
 (extend-type nil
   IType
-  (-type [_] :nil))
+  (-type (_) :nil))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -101,7 +101,7 @@
 
 (extend-type boolean
   IType
-  (-type [_] :boolean))
+  (-type (_) :boolean))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -116,7 +116,7 @@
 
 (extend-type number
   IType
-  (-type [_] :number))
+  (-type (_) :number))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -131,7 +131,7 @@
 
 (extend-type string
   IType
-  (-type [_] :string))
+  (-type (_) :string))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -146,7 +146,7 @@
 
 (extend-type re-pattern
   IType
-  (-type [_] :pattern))
+  (-type (_) :pattern))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -161,7 +161,7 @@
 
 (extend-type function
   IType
-  (-type [_] :function))
+  (-type (_) :function))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -176,7 +176,7 @@
 
 (extend-type vector
   IType
-  (-type [_] :vector))
+  (-type (_) :vector))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -191,7 +191,7 @@
 
 (extend-type default
   IType
-  (-type [_] :default))
+  (-type (_) :default))
 
 (is (= (satisfaction IType)
        {:nil true
@@ -213,8 +213,8 @@
 (is (= (-type "hello") :string))
 (is (= (-type "") :string))
 (is (= (-type #"foo") :pattern))
-(is (= (-type (fn [x] x)) :function))
-(is (= (-type #(inc %)) :function))
+(is (= (-type (lambda (x) x)) :function))
+(is (= (-type (lambda (%) (inc %))) :function))
 (is (= (-type []) :vector))
 (is (= (-type [1]) :vector))
 (is (= (-type [1 2 3]) :vector))
@@ -222,7 +222,7 @@
 (is (= (-type {:a 1}) :default))
 
 (defprotocol IFoo
-  (foo? [x]))
+  (foo? (x)))
 
 (is (= (satisfaction IFoo)
        {:nil false
@@ -237,7 +237,7 @@
 
 (extend-type default
   IFoo
-  (foo? [_] false))
+  (foo? (_) false))
 
 (is (= (satisfaction IFoo)
        {:nil true
@@ -251,11 +251,11 @@
     "all types satisfy protocol")
 
 (defprotocol IBar
-  (bar? [x]))
+  (bar? (x)))
 
 (extend-type js/Object
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false
@@ -270,7 +270,7 @@
 
 (extend-type js/Number
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false
@@ -286,7 +286,7 @@
 
 (extend-type js/String
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false
@@ -302,7 +302,7 @@
 
 (extend-type js/Boolean
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false
@@ -317,7 +317,7 @@
 
 (extend-type js/Function
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false
@@ -332,7 +332,7 @@
 
 (extend-type js/Array
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false
@@ -347,7 +347,7 @@
 
 (extend-type js/RegExp
   IBar
-  (bar? [_] true))
+  (bar? (_) true))
 
 (is (= (satisfaction IBar)
        {:nil false

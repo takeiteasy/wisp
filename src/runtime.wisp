@@ -117,8 +117,8 @@
                             (str "wisp_core$IProtocol$"
                                  (.replace (.replace (.call Object.prototype.toString x)
                                                      "[object " "")
-                                           #"\]$" ""))))
-                      false))))
+                                           #"\]$" "")))
+                      false)))))
 
 (defun contains-vector?
   (vector element)
