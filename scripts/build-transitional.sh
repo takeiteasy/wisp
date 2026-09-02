@@ -57,7 +57,6 @@ cp bin/wisp.js transitional/bin/wisp.js
 
 # path relative to src/, without .wisp extension
 OLD_SYNTAX_FILES=(
-  reader
   expander
   analyzer
   runtime
@@ -67,6 +66,7 @@ OLD_SYNTAX_FILES=(
 # path:git-ref -- git-ref is the last commit where src/<path>.wisp was
 # still old-syntax (i.e. the parent of the commit that rewrote it).
 NEW_SYNTAX_FILES=(
+  "reader:fde4259"
   "string:cb41919"
   "ast:13c6510"
   "compiler:cb41919"
