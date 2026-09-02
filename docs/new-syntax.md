@@ -175,10 +175,13 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 most uses of arity overloading.
 
 **Arity overloading** — `(lambda ((x) …) ((x y) …))` — is a Clojure specific
-and is **under review, likely removed**. `&optional`/`&rest` cover the real
-uses. The final call waits until the source-tree transform is prototyped and
-the number of overloaded sites in `src/*.wisp` is known; if it is retained it
-is documented as non-idiomatic.
+and is **removed**. `&optional`/`&rest` cover the real uses. The Phase 3
+source-tree transform found 11 overloaded sites across `src/*.wisp`, all
+mechanical: `&optional`-with-default covers the sequence/analyzer helpers,
+and the arity-unrolled core ops (`+` `-` `*` `/` `and` `or`) fold to a single
+`&rest` clause with a reduce (a JS perf micro-optimization traded for
+language simplicity — see the follow-up perf ticket if it ever matters).
+`lambda`/`defun` accept exactly one parameter-list clause.
 
 ## JS interop
 
@@ -277,7 +280,6 @@ optional param defaulting inline; `lambda*` bodies as `() => …`.
 
 - `lambda*` vs `=>` for the arrow form.
 - whether `defconst-` is worth having separately from `defvar-`.
-- arity overloading: keep as a non-idiomatic extension, or remove.
 - `:export` clause on the module form vs the trailing-dash forms.
 - `ns` → `(require 'x)` / `(provide 'x)` rename, and `.`-vs-`/` in module
   names — deferred, but listed so they are not forgotten.
