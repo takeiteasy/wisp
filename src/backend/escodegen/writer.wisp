@@ -94,6 +94,15 @@
   ;; create-server -> createServer
   (set! id (reduce ->camel-join "" (split id "-")))
 
+  ;; residual sweep: the sugar above only rewrites `?`/`>`/`<`/`/` in specific
+  ;; positions (a trailing `?`, or the char standing alone). Anything left over
+  ;; -- `x?y`, `?foo`, `a>b` -- is still an invalid JS identifier, so map each
+  ;; surviving character to a ClojureScript-style munge fragment.
+  (set! id (join "_QMARK_" (split id "?")))
+  (set! id (join "_GT_" (split id ">")))
+  (set! id (join "_LT_" (split id "<")))
+  (set! id (join "_SLASH_" (split id "/")))
+
   id)
 
 (defn translate-identifier

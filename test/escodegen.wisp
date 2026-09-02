@@ -55,6 +55,12 @@
 (is (= (transpile "foo.bar/baz") "foo_bar.baz;"))
 (is (= (transpile "js/window") "window;"))
 
+;; specials that survive the clojure-name sugar fall back to munge fragments
+;; so the emitted identifier is always valid JS
+(is (= (transpile "some?-thing") "some_QMARK_Thing;"))
+(is (= (transpile "a?b") "a_QMARK_b;"))
+(is (= (transpile "?x") "_QMARK_x;"))
+
 ;; =>
 ;; keywords
 
