@@ -67,6 +67,11 @@ required at runtime. See [docs/wisc.md](docs/wisc.md).
 
 # Language Essentials
 
+> The surface syntax below is Clojure-flavoured. A planned divergence moves
+> the language toward a small Emacs-Lisp-style dialect (`defun`/`lambda`/
+> `progn`, `&optional`/`&rest`, list-punning `nil`). Design spec:
+> [docs/new-syntax.md](docs/new-syntax.md).
+
 ## Data structures
 
 
