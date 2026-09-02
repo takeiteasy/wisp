@@ -17,57 +17,50 @@
             [wisp.ast :refer [pr-str name]]
             [wisp.compiler :refer [compile]]))
 
-(defn compile-stdin
-  [options]
+(defun compile-stdin (options)
   (with-stream-content process.stdin
                        compile-string
                        (conj {} options)))
 ;; (conj {:source-uri options}) causes segfault for some reason
 
-(defn compile-file
-  [path options]
+(defun compile-file (path options)
   (with-stream-content (createReadStream path)
                        compile-string
                        (conj {:source-uri path} options)))
 
-(defn compile-string
-  [source options]
-  (let [channel (or (:print options) :code)
-        output (compile source options)
-        content (cond
-                  (= channel :code) (:code output)
-                  (= channel :expansion) (:expansion output)
-                  :else (JSON.stringify (get output channel) 2 2))]
+(defun compile-string (source options)
+  (let* ((channel (or (:print options) :code))
+        (output (compile source options))
+        (content (cond
+                  ((= channel :code) (:code output))
+                  ((= channel :expansion) (:expansion output))
+                  (else (JSON.stringify (get output channel) 2 2)))))
       (.write process.stdout (or content "nil"))
     (if (:error output) (throw (.-error output)))))
 
-(defn with-stream-content
-  [input resume options]
-  (let [content ""]
+(defun with-stream-content (input resume options)
+  (let* ((content ""))
     (.setEncoding input "utf8")
     (.resume input)
-    (.on input "data" #(set! content (str content %)))
-    (.once input "end" (fn [] (resume content options)))))
+    (.on input "data" (lambda (chunk) (setq content (str content chunk))))
+    (.once input "end" (lambda () (resume content options)))))
 
 
-(defn run
-  [path]
+(defun run (path)
   ;; Loading module as main one, same way as nodejs does it:
   ;; https://github.com/joyent/node/blob/master/lib/module.js#L489-493
   (Module._load (resolve path) null true))
 
-(defmacro ->
-  [& operations]
+(defmacro -> (&rest operations)
   (reduce
-   (fn [form operation]
+   (lambda (form operation)
      (cons (first operation)
            (cons form (rest operation))))
    (first operations)
    (rest operations)))
 
-(defn parse-params
-  [params]
-  (let [program (-> (new commander.Command)
+(defun parse-params (params)
+  (let* ((program (-> (new commander.Command)
                     (.version version)
                     (.arguments "[args...]")
                     (.usage "[options] <file ...>")
@@ -79,16 +72,16 @@
                              "run an interactive wisp REPL (same as wisp with no params)")
                     (.option "--print <format>"
                              "use custom print output `expansion`,`forms`, `ast`, `js-ast` or (default) `code`"
-                             (fn [x _] (str x)))
+                             (lambda (x _) (str x)))
                     (.option "--no-map"
                              "disable source map generation")
                     (.option "--source-uri <uri>"
                              "uri input will be associated with in source maps")
                     (.option "--output-uri <uri>"
                              "uri output will be associated with in source maps")
-                    (.parse params))
-        options (.opts program)]
-    (set! (.-args options) (.-args program))
+                    (.parse params)))
+        (options (.opts program)))
+    (setf (.-args options) (.-args program))
     ;; commander camel-cases dashed long options, so `--source-uri` lands on
     ;; `options.sourceUri`; map them back to the dashed keys the compiler reads.
     (conj {:no-map (not (:map options))
@@ -96,17 +89,16 @@
            :output-uri (:outputUri options)}
           options)))
 
-(defn main
-  []
-  (let [options (parse-params process.argv)
-        path (aget options.args 0)]
-    (cond options.run (run path)
-          options.compile (if path
+(defun main ()
+  (let* ((options (parse-params process.argv))
+        (path (aget options.args 0)))
+    (cond (options.run (run path))
+          (options.compile (if path
                             (compile-file path options)
-                            (compile-stdin options))
-          path (if (:print options)
+                            (compile-stdin options)))
+          (path (if (:print options)
                  (compile-file path options)
-                 (run path))
-          (not process.stdin.isTTY) (compile-stdin options)
-          options.interactive (start-repl)
-          :else (start-repl))))
+                 (run path)))
+          ((not process.stdin.isTTY) (compile-stdin options))
+          (options.interactive (start-repl))
+          (else (start-repl)))))

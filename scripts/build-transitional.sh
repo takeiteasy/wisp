@@ -62,7 +62,6 @@ OLD_SYNTAX_FILES=(
   analyzer
   runtime
   sequence
-  wisp
   repl
   backend/escodegen/writer
   backend/escodegen/generator
@@ -75,6 +74,7 @@ NEW_SYNTAX_FILES=(
   "string:cb41919"
   "ast:13c6510"
   "compiler:cb41919"
+  "wisp:0463019"
   "backend/javascript/writer:c8d86d6"
 )
 

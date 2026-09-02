@@ -55,8 +55,8 @@
   macro and will be used as a macro by the compiler when it is
   called."
   [&form id & body]
-  (let [fn (with-meta `(defn ~id ~@body) (meta &form))
-        form `(do ~fn ~id)
+  (let [fn (with-meta `(defun ~id ~@body) (meta &form))
+        form `(progn ~fn ~id)
         ast (analyze form)
         code (compile ast)
         macro (eval code)]
