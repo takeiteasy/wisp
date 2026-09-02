@@ -1,14 +1,14 @@
 (ns wisp.test.analyzer
   (:require [wisp.test.util :refer [is thrown?]]
-            [wisp.src.analyzer :refer [analyze]]
-            [wisp.src.ast :refer [meta symbol pr-str]]
-            [wisp.src.sequence :refer [first second third map list]]
-            [wisp.src.runtime :refer [=]]))
+            [wisp.analyzer :refer [analyze]]
+            [wisp.ast :refer [meta symbol pr-str]]
+            [wisp.sequence :refer [first second third map list]]
+            [wisp.runtime :refer [=]]))
 
 
 ;; repeating templates
 
-(defn- *unresolved [name]
+(defun- *unresolved (name)
   {:op         :unresolved-binding
    :type       :unresolved-binding
    :start      nil
@@ -16,7 +16,7 @@
    :identifier {:type :identifier
                 :form name}})
 
-(defn- *bound-var [name binding]
+(defun- *bound-var (name binding)
   {:op      :var
    :form    name
    :type    :identifier
@@ -24,17 +24,17 @@
    :end     nil
    :binding binding})
 
-(defn- *var [name]
+(defun- *var (name)
   (*bound-var name (*unresolved name)))
 
-(defn- *symbol [name]
+(defun- *symbol (name)
   (*bound-var name nil))
 
-(defn- *value [value]
+(defun- *value (value)
   {:op   :constant
    :form value})
 
-(defn- *binding [form depth name value]
+(defun- *binding (form depth name value)
   {:op     :binding
    :form   form
    :type   :binding
@@ -43,7 +43,7 @@
    :shadow (*unresolved name)
    :init   value})
 
-(defn- *param [name depth shadow]
+(defun- *param (name depth shadow)
   {:op     :param
    :form   name
    :type   :parameter
@@ -53,10 +53,10 @@
    :end    nil
    :shadow shadow})
 
-(defn- *param1 [name depth shadow]
+(defun- *param1 (name depth shadow)
   (*param name 1 (*unresolved name)))
 
-(defn- *id [name depth shadow]
+(defun- *id (name depth shadow)
   {:op     :var
    :form   name
    :type   :identifier
@@ -66,10 +66,10 @@
    :end    nil
    :shadow shadow})
 
-(defn- *id0 [name]
+(defun- *id0 (name)
   (*id name 0 (*unresolved name)))
 
-(defn- *aget [form computed target property]
+(defun- *aget (form computed target property)
   {:op       :member-expression
    :form     form
    :computed computed
@@ -112,7 +112,7 @@
 
 (is (= (analyze {} '[:foo bar "baz"])
        {:op    :vector
-        :form  '[:foo bar "baz"],
+        :form  '[:foo bar "baz"]
         :items [(*value ':foo)
                 (*var 'bar)
                 (*value "baz")]}))
@@ -129,12 +129,11 @@
         :keys   [(*value "foo")]
         :values [(*var 'bar)]}))
 
+;; () is nil (the Phase 2 nil singleton), not a distinct empty-list
+;; value, so analyzing it takes the (nil? form) branch and produces a
+;; plain constant node, same as analyzing a bare nil literal would.
 (is (= (analyze {} ())
-       {:op    :list
-        :form  '()
-        :start nil
-        :end   nil
-        :items []}))
+       (*value nil)))
 
 (is (= (analyze {} '(foo))
        {:op     :invoke
@@ -347,13 +346,13 @@
         :value  (*var 'print)}))
 
 
-(is (= (analyze {} '(do
+(is (= (analyze {} '(progn
                       (read content)
                       (print "read")
                       (write content)))
 
        {:op         :do
-        :form       '(do (read content) (print "read") (write content))
+        :form       '(progn (read content) (print "read") (write content))
         :start      nil
         :end        nil
         :statements [{:op     :invoke
@@ -371,9 +370,9 @@
                      :params [(*var 'content)]}}))
 
 
-(is (= (analyze {} '(def x 1))
+(is (= (analyze {} '(defvar x 1))
        {:op     :def
-        :form   '(def x 1)
+        :form   '(defvar x 1)
         :start  nil
         :end    nil
         :export nil
@@ -381,9 +380,9 @@
         :id     (*id0 'x)
         :init   (*value 1)}))
 
-(is (= (analyze {:parent {}} '(def x 1))
+(is (= (analyze {:parent {}} '(defvar x 1))
        {:op     :def
-        :form   '(def x 1)
+        :form   '(defvar x 1)
         :start  nil
         :end    nil
         :export nil
@@ -391,9 +390,9 @@
         :id     (*id0 'x)
         :init   (*value 1)}))
 
-(is (= (analyze {:parent {}} '(def x (foo bar)))
+(is (= (analyze {:parent {}} '(defvar x (foo bar)))
        {:op     :def
-        :form   '(def x (foo bar))
+        :form   '(defvar x (foo bar))
         :start  nil
         :end    nil
         :export nil
@@ -405,15 +404,15 @@
                  :params [(*var 'bar)]}}))
 
 
-(is (= (analyze {} '(let* [x 1 y 2] (+ x y)))
+(is (= (analyze {} '(let** [x 1 y 2] (+ x y)))
 
-       (let [*x (*binding '[x 1] 1
-                          'x (*value 1))
-             *y (*binding '[y 2] 1
-                          'y (*value 2))]
+       (let* ((*x (*binding '[x 1] 1
+                          'x (*value 1)))
+             (*y (*binding '[y 2] 1
+                          'y (*value 2))))
 
          {:op         :let
-          :form       '(let* [x 1, y 2] (+ x y))
+          :form       '(let** [x 1 y 2] (+ x y))
           :start      nil
           :end        nil
           :bindings   [*x *y]
@@ -432,15 +431,15 @@
                         (recur (rest chars)
                                (conj result (first chars))))))
 
-       (let [*chars  (*binding '[chars stream] 1
-                               'chars (*var 'stream))
-             *result (*binding '[result []] 1
+       (let* ((*chars  (*binding '[chars stream] 1
+                               'chars (*var 'stream)))
+             (*result (*binding '[result []] 1
                                'result {:op    :vector
                                         :form  []
-                                        :items []})]
+                                        :items []})))
 
          {:op         :loop
-          :form       '(loop* [chars stream, result []]
+          :form       '(loop* [chars stream result []]
                          (if (empty? chars)
                            :eof
                            (recur (rest chars)
