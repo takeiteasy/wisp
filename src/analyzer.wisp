@@ -203,9 +203,10 @@
 (install-special! :aget analyze-aget)
 
 (defn parse-def
-  ([id] {:id id})
-  ([id init] {:id id :init init})
-  ([id doc init] {:id id :doc doc :init init}))
+  [id & args]
+  (cond (empty? args) {:id id}
+        (identical? (count args) 1) {:id id :init (first args)}
+        :else {:id id :doc (first args) :init (second args)}))
 
 (defn analyze-def
   "Backs `defvar`/`defvar-`/`defconst`/`defconst-`. Privacy (whether the

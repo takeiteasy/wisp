@@ -847,18 +847,21 @@
 
 
 (defn compile
-  ([form] (compile {} form))
-  ([options & forms] (generate (apply write* forms) options)))
+  [& args]
+  (if (identical? (count args) 1)
+    (compile {} (first args))
+    (generate (apply write* (rest args)) (first args))))
 
 
 (defn get-macro
-  ([target property]
-   `(aget (or ~target 0)
-          ~property))
-  ([target property default*]
-    (if (identical? default* nil)
-      `(get ~target ~property)
-      `(apply get ~[target property default*]))))
+  [target property & args]
+  (if (empty? args)
+    `(aget (or ~target 0)
+           ~property)
+    (let [default* (first args)]
+      (if (identical? default* nil)
+        `(get ~target ~property)
+        `(apply get ~[target property default*])))))
 (install-macro! :get get-macro)
 
 ;; Logical operators
@@ -966,27 +969,30 @@
   ;; Comparison operators must use temporary variable to store
   ;; expression non literal and non-identifiers.
   (defn write-comparison-operator
-    ([] (error-arg-count callee 0))
-    ([form] (->sequence [(write form)
-                         (write-literal fallback)]))
-    ([left right]
-     {:type :BinaryExpression
-      :operator operator
-      :left (write left)
-      :right (write right)})
-    ([left right & more]
-     (reduce (fn [left right]
-               {:type :LogicalExpression
-                :operator :&&
-                :left left
-                :right {:type :BinaryExpression
-                        :operator operator
-                        :left (if (= :LogicalExpression (:type left))
-                                (:right (:right left))
-                                (:right left))
-                        :right (write right)}})
-             (write-comparison-operator left right)
-             more)))
+    [& args]
+    (let [n (count args)]
+      (cond (identical? n 0) (error-arg-count callee 0)
+            (identical? n 1) (->sequence [(write (first args))
+                                          (write-literal fallback)])
+            (identical? n 2) {:type :BinaryExpression
+                              :operator operator
+                              :left (write (first args))
+                              :right (write (second args))}
+            :else (let [left (first args)
+                        right (second args)
+                        more (rest (rest args))]
+                    (reduce (fn [left right]
+                              {:type :LogicalExpression
+                               :operator :&&
+                               :left left
+                               :right {:type :BinaryExpression
+                                       :operator operator
+                                       :left (if (= :LogicalExpression (:type left))
+                                               (:right (:right left))
+                                               (:right left))
+                                       :right (write right)}})
+                            (write-comparison-operator left right)
+                            more)))))
 
   (install-special! callee write-comparison-operator))
 
@@ -1059,12 +1065,13 @@
 (defn expand-assert
   ^{:doc "Evaluates expr and throws an exception if it does not evaluate to
     logical true."}
-  ([x] (expand-assert x ""))
-  ([x message] (let [form (pr-str x)]
-                 `(if (not ~x)
-                    (throw (Error (str "Assert failed: "
-                                       ~message
-                                       ~form)))))))
+  [x & args]
+  (let [message (if (empty? args) "" (first args))
+        form (pr-str x)]
+    `(if (not ~x)
+       (throw (Error (str "Assert failed: "
+                          ~message
+                          ~form))))))
 (install-macro! :assert expand-assert)
 
 
@@ -1238,15 +1245,16 @@
 (install-macro! :extend-protocol expand-extend-protocol)
 
 (defn aset-expand
-  ([target field value]
-   `(set! (aget ~target ~field) ~value))
-  ([target field sub-field & sub-fields&value]
-   (let [resolved-target (reduce (fn [form node]
-                                   `(aget ~form ~node))
-                                 `(aget ~target ~field)
-                                 (cons sub-field (butlast sub-fields&value)))
-         value (last sub-fields&value)]
-     `(set! ~resolved-target ~value))))
+  [target field third & rest-args]
+  (if (empty? rest-args)
+    `(set! (aget ~target ~field) ~third)
+    (let [sub-fields&value (cons third rest-args)
+          resolved-target (reduce (fn [form node]
+                                    `(aget ~form ~node))
+                                  `(aget ~target ~field)
+                                  (butlast sub-fields&value))
+          value (last sub-fields&value)]
+      `(set! ~resolved-target ~value))))
 (install-macro! :aset aset-expand)
 
 (defn alength-expand

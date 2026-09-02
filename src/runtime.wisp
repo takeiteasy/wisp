@@ -29,11 +29,7 @@
 (defn complement
   "Takes a fn f and returns a fn that takes the same arguments as f,
   has the same effects, if any, and returns the opposite truth value."
-  [f] (fn
-        ([] (not (f)))
-        ([x] (not (f x)))
-        ([x y] (not (f x y)))
-        ([x y & zs] (not (apply f x y zs)))))
+  [f] (fn [& args] (not (apply f args))))
 
 (defn ^boolean odd? [n]
   (identical? (rem n 2) 1))
@@ -471,76 +467,48 @@
           true)))))
 
 (defn ^boolean +
-  ([] 0)
-  ([a] a)
-  ([a b] (+ a b))
-  ([a b c] (+ a b c))
-  ([a b c d] (+ a b c d))
-  ([a b c d e] (+ a b c d e))
-  ([a b c d e f] (+ a b c d e f))
-  ([a b c d e f & more]
-   (loop [value (+ a b c d e f)
-          index 0
-          count (.-length more)]
-     (if (< index count)
-       (recur (+ value (get more index))
-              (inc index)
-              count)
-       value))))
+  [& args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) 0
+          (identical? n 1) (get args 0)
+          :else (loop [value (+ (get args 0) (get args 1))
+                       index 2]
+                  (if (< index n)
+                    (recur (+ value (get args index)) (inc index))
+                    value)))))
 
 (defn ^boolean -
-  ([] (throw (TypeError "Wrong number of args passed to: -")))
-  ([a] (- 0 a))
-  ([a b] (- a b))
-  ([a b c] (- a b c))
-  ([a b c d] (- a b c d))
-  ([a b c d e] (- a b c d e))
-  ([a b c d e f] (- a b c d e f))
-  ([a b c d e f & more]
-   (loop [value (- a b c d e f)
-          index 0
-          count (.-length more)]
-     (if (< index count)
-       (recur (- value (get more index))
-              (inc index)
-              count)
-       value))))
+  [& args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) (throw (TypeError "Wrong number of args passed to: -"))
+          (identical? n 1) (- 0 (get args 0))
+          :else (loop [value (- (get args 0) (get args 1))
+                       index 2]
+                  (if (< index n)
+                    (recur (- value (get args index)) (inc index))
+                    value)))))
 
 (defn ^boolean /
-  ([] (throw (TypeError "Wrong number of args passed to: /")))
-  ([a] (/ 1 a))
-  ([a b] (/ a b))
-  ([a b c] (/ a b c))
-  ([a b c d] (/ a b c d))
-  ([a b c d e] (/ a b c d e))
-  ([a b c d e f] (/ a b c d e f))
-  ([a b c d e f & more]
-   (loop [value (/ a b c d e f)
-          index 0
-          count (.-length more)]
-     (if (< index count)
-       (recur (/ value (get more index))
-              (inc index)
-              count)
-       value))))
+  [& args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) (throw (TypeError "Wrong number of args passed to: /"))
+          (identical? n 1) (/ 1 (get args 0))
+          :else (loop [value (/ (get args 0) (get args 1))
+                       index 2]
+                  (if (< index n)
+                    (recur (/ value (get args index)) (inc index))
+                    value)))))
 
 (defn ^boolean *
-  ([] 1)
-  ([a] a)
-  ([a b] (* a b))
-  ([a b c] (* a b c))
-  ([a b c d] (* a b c d))
-  ([a b c d e] (* a b c d e))
-  ([a b c d e f] (* a b c d e f))
-  ([a b c d e f & more]
-   (loop [value (* a b c d e f)
-          index 0
-          count (.-length more)]
-     (if (< index count)
-       (recur (* value (get more index))
-              (inc index)
-              count)
-       value))))
+  [& args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) 1
+          (identical? n 1) (get args 0)
+          :else (loop [value (* (get args 0) (get args 1))
+                       index 2]
+                  (if (< index n)
+                    (recur (* value (get args index)) (inc index))
+                    value)))))
 
 (defn ^boolean quot [num div] (int (/ num div)))
 (defn ^boolean mod [num div] (- num (* div (quot num div))))
@@ -556,40 +524,26 @@
     (fn [num div] (rem num div))))
 
 (defn ^boolean and
-  ([] true)
-  ([a] a)
-  ([a b] (and a b))
-  ([a b c] (and a b c))
-  ([a b c d] (and a b c d))
-  ([a b c d e] (and a b c d e))
-  ([a b c d e f] (and a b c d e f))
-  ([a b c d e f & more]
-   (loop [value (and a b c d e f)
-          index 0
-          count (.-length more)]
-     (if (< index count)
-       (recur (and value (get more index))
-              (inc index)
-              count)
-       value))))
+  [& args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) true
+          (identical? n 1) (get args 0)
+          :else (loop [value (and (get args 0) (get args 1))
+                       index 2]
+                  (if (< index n)
+                    (recur (and value (get args index)) (inc index))
+                    value)))))
 
 (defn ^boolean or
-  ([] nil)
-  ([a] a)
-  ([a b] (or a b))
-  ([a b c] (or a b c))
-  ([a b c d] (or a b c d))
-  ([a b c d e] (or a b c d e))
-  ([a b c d e f] (or a b c d e f))
-  ([a b c d e f & more]
-   (loop [value (or a b c d e f)
-          index 0
-          count (.-length more)]
-     (if (< index count)
-       (recur (or value (get more index))
-              (inc index)
-              count)
-       value))))
+  [& args]
+  (let [n (.-length args)]
+    (cond (identical? n 0) nil
+          (identical? n 1) (get args 0)
+          :else (loop [value (or (get args 0) (get args 1))
+                       index 2]
+                  (if (< index n)
+                    (recur (or value (get args index)) (inc index))
+                    value)))))
 
 (defn print
   [& more]

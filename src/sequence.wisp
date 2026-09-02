@@ -506,20 +506,21 @@
 
 
 (defn partition
-  ([n coll] (partition n n coll))
-  ([n step coll] (partition n step [] coll))
-  ([n step pad coll]
-   (loop [result []
-          items (seq coll)]
-     (let [chunk (take n items)
-           size (count chunk)]
-       (cond (identical? size n) (recur (conj result chunk)
-                                        (drop step items))
-             (identical? 0 size) result
-             (> n (+ size (count pad))) result
-             :else (conj result
-                         (take n (vec (concat chunk
-                                              pad)))))))))
+  [n & args]
+  (let [step (if (>= (count args) 2) (first args) n)
+        pad  (if (>= (count args) 3) (second args) [])
+        coll (last args)]
+    (loop [result []
+           items (seq coll)]
+      (let [chunk (take n items)
+            size (count chunk)]
+        (cond (identical? size n) (recur (conj result chunk)
+                                         (drop step items))
+              (identical? 0 size) result
+              (> n (+ size (count pad))) result
+              :else (conj result
+                          (take n (vec (concat chunk
+                                               pad)))))))))
 
 (defn interleave [& sequences]
   (if (empty? sequences)
@@ -610,9 +611,12 @@
               (concat coll (cycle coll)))))
 
 (defn infinite-range
-  ([] (infinite-range 0))
-  ([n] (iterate inc n))
-  ([n step] (iterate #(+ % step) n)))
+  [& args]
+  (let [n (if (empty? args) 0 (first args))
+        step (second args)]
+    (if (nil? step)
+      (iterate inc n)
+      (iterate #(+ % step) n))))
 
 (defn lazy-map [f & sequences]
   (unfold #(if (some empty? %)
@@ -637,9 +641,10 @@
      (seq (first sequences)))))
 
 (defn lazy-partition
-  ([n coll] (lazy-partition n n coll))
-  ([n step coll] (lazy-partition n step [] coll))
-  ([n step pad coll]
+  [n & args]
+  (let [step (if (>= (count args) 2) (first args) n)
+        pad  (if (>= (count args) 3) (second args) [])
+        coll (last args)]
     (unfold #(let [chunk (take n (concat (take n %) pad))]
                (if (and (not (empty? %)) (identical? n (count chunk)))
                  [chunk (drop step %)]))
