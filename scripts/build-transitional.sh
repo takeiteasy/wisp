@@ -78,6 +78,7 @@ NEW_SYNTAX_FILES=(
   "engine/browserExport:57c1c59"
   "backend/escodegen/writer:8cabb0f"
   "backend/escodegen/generator:7b9d051"
+  "qjs_bundle:52b2004"
 )
 
 echo "== stage 0: old-syntax files, current src/, via stage-0 =="
