@@ -691,7 +691,7 @@
   [form]
   (let [params (:params form)
         bindings (if (:variadic form)
-                   (conj (write-overloading-params (butlast params))
+                   (conj (write-overloading-params (vec (butlast params)))
                          (splice-binding form))
                    (write-overloading-params params))
         statements (vec (concat bindings (:statements form)))]
@@ -705,7 +705,7 @@
   [form]
   (let [method (first (:methods form))
         params (if (:variadic method)
-                 (butlast (:params method))
+                 (vec (butlast (:params method)))
                  (:params method))
         body (if (:variadic method)
                (conj method
