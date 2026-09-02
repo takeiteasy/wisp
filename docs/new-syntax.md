@@ -176,12 +176,13 @@ most uses of arity overloading.
 
 **Arity overloading** — `(lambda ((x) …) ((x y) …))` — is a Clojure specific
 and is **removed**. `&optional`/`&rest` cover the real uses. The Phase 3
-source-tree transform found 11 overloaded sites across `src/*.wisp`, all
-mechanical: `&optional`-with-default covers the sequence/analyzer helpers,
-and the arity-unrolled core ops (`+` `-` `*` `/` `and` `or`) fold to a single
-`&rest` clause with a reduce (a JS perf micro-optimization traded for
-language simplicity — see the follow-up perf ticket if it ever matters).
-`lambda`/`defun` accept exactly one parameter-list clause.
+source-tree transform found 16 overloaded sites across `src/*.wisp`, all
+mechanical: `&rest`-with-count-branching or `&optional`-style trailing
+defaults cover the analyzer/writer/sequence helpers, and the arity-unrolled
+core ops (`+` `-` `*` `/` `and` `or`) fold to a single `&rest` clause with a
+hand-rolled loop (a JS perf micro-optimization traded for language
+simplicity — see the follow-up perf ticket if it ever matters). `lambda`/
+`defun` accept exactly one parameter-list clause.
 
 ## JS interop
 
