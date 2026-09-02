@@ -75,6 +75,7 @@ NEW_SYNTAX_FILES=(
   "string:cb41919"
   "ast:13c6510"
   "compiler:cb41919"
+  "backend/javascript/writer:c8d86d6"
 )
 
 echo "== stage 0: old-syntax files, current src/, via stage-0 =="
@@ -126,6 +127,7 @@ echo "== stage 2: new-syntax files, current src/, via the transitional compiler 
 for entry in "${NEW_SYNTAX_FILES[@]}"; do
   f="${entry%%:*}"
   echo "  $f.wisp"
+  mkdir -p "$TMP/$(dirname "$f")"
   node transitional/bin/wisp.js -c "src/$f.wisp" --source-uri "wisp/$f.wisp" \
     > "$TMP/$f.js"
   mkdir -p "transitional/$(dirname "$f")"
