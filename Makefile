@@ -186,11 +186,11 @@ wisc: $(WISC)
 # smoke tests for the quickjs-backed binary
 wisc-check: $(WISC)
 	@$(WISC) -e '(+ 1 2)' | grep -qx '3'
-	@printf "(def x 6)" > $(BUILD_DIR)/wisc_check.wisp
+	@printf "(defvar x 6)" > $(BUILD_DIR)/wisc_check.wisp
 	@echo "(* x 7)" >> $(BUILD_DIR)/wisc_check.wisp
-	@$(WISC) -e '(def x 6)' -e '(* x 7)' | grep -qx '42'
+	@$(WISC) -e '(defvar x 6)' -e '(* x 7)' | grep -qx '42'
 	@echo '(+ 1 2)' | $(WISC) -c - | grep -q '^1 + 2;'
-	@printf '(+ 1 2)\n(defn sq [x] (* x x))\n(sq 9)\n:q\n' | $(WISC) -i | sed 's/^user=> //' | grep -qx '81'
+	@printf '(+ 1 2)\n(defun sq (x) (* x x))\n(sq 9)\n:q\n' | $(WISC) -i | sed 's/^user=> //' | grep -qx '81'
 	@rm -f $(BUILD_DIR)/wisc_check.wisp
 	@echo "wisc-check OK"
 
