@@ -1,22 +1,37 @@
 # Language Essentials
 
-## Data structures
+_wisp_ is a homoiconic Lisp that compiles to readable JavaScript and runs
+anywhere JavaScript runs — node, the browser, and the `wisc` QuickJS
+binary. The surface syntax is a small traditional Lisp: parens over
+brackets, `defun` / `lambda` / `progn` / `setq`, `&optional` / `&rest`,
+and a `nil`-centric view of lists. The full design spec (reader grammar,
+special forms, rationale) lives in [language.md](language.md).
 
+## Data structures
 
 #### nil
 
-`nil` is just like JavaScript `undefined` with the difference that it
-cannot be redefined. It compiles down to `void(0)` in JavaScript.
+`nil` is a runtime **singleton** with list-punning:
 
-```clojure
-nil ; => void(0)
+- `()` — the empty list — reads as `nil`, as do `(list)` and the tail of a
+  one-element list
+- `(car nil)` is `nil`, `(cdr nil)` is `nil`
+- `nil` is distinct from JavaScript `undefined` and `null` as a value,
+  though it coerces to `null` at the JS boundary
+
+```lisp
+nil ; => null
 ```
+
+Only `nil` and `false` are falsy. `0`, `""`, `NaN`, `[]` and `{}` are all
+truthy. There is **no `t`** — use `true`.
 
 #### Booleans
 
-`true` / `false` are directly equivalent to plain JavaScript booleans:
+`true` / `false` are directly equivalent to plain JavaScript booleans.
+`false` is a distinct falsy value, not an alias for `nil`:
 
-```clojure
+```lisp
 true ; => true
 ```
 
@@ -24,7 +39,7 @@ true ; => true
 
 _wisp_ numbers are directly equivalent to JavaScript numbers:
 
-```clojure
+```lisp
 1 ; => 1
 ```
 
@@ -32,12 +47,12 @@ _wisp_ numbers are directly equivalent to JavaScript numbers:
 
 _wisp_ strings are JavaScript strings:
 
-```clojure
+```lisp
 "Hello world"
 ```
 ...and can be multi-line:
 
-```clojure
+```lisp
 "Hello,
 My name is wisp!"
 ```
@@ -46,111 +61,138 @@ My name is wisp!"
 
 Characters are syntactic sugar for single character strings:
 
-```clojure
-\a  ; => "a"
-\b  ; => "b"
+```lisp
+\a       ; => "a"
+\newline ; => "\n"
 ```
 
 #### Keywords
+
 Keywords are symbolic identifiers that evaluate to themselves:
 
-```clojure
-:keyword  ; => "keyword"
+```lisp
+:keyword ; => "keyword"
 ```
 
-Since in JavaScript string constants fulfill the purpose of symbolic identifiers,
-keywords compile to equivalent strings in JavaScript. This allows using
-keywords in Clojure(Script) and JavaScript idiomatic fashion:
+Since JavaScript string constants fulfill the purpose of symbolic
+identifiers, keywords compile to equivalent strings. This allows using
+keywords in idiomatic fashion for event names and the like:
 
-```clojure
+```lisp
 (window.addEventListener :load handler false)
 ```
 
-Keywords can also be invoked as functions, although that too is syntax sugar
-that compiles to property access in JavaScript:
+Keywords can also be invoked as functions, which is syntax sugar for a
+guarded property access:
 
-```clojure
-(:bar foo) ; => (foo || 0)["bar"]
+```lisp
+(:bar foo) ; => foo["bar"] when foo is an object
 ```
 
-Note that keywords in _wisp_ are not real functions so they can't be composed
-or passed to high order functions.
+Note that keywords in _wisp_ are not real functions, so they can't be
+composed or passed to higher order functions.
 
 #### Vectors
 
-_wisp_ vectors are plain JavaScript arrays, but nevertheless all standard
-library functions are non-destructive and pure functional as in Clojure.
+_wisp_ vectors are plain JavaScript arrays, but the standard library
+functions are non-destructive and pure functional:
 
-```clojure
-[ 1 2 3 4 ]
+```lisp
+[1 2 3 4]
 ```
-Note: Commas are considered whitespace and can be used if desired:
 
-```clojure
-[1, 2, 3, 4]
-```
-#### Dictionaries
+Unlike Clojure, commas are **not** whitespace — `,x` is the unquote reader
+form (see [Macros](#macros)) — so vector elements are simply separated by
+spaces.
 
-_wisp_ does not have Clojure-like value-to-value maps by default, but rather dictionaries that map to plain JavaScript objects.
+#### Maps
 
-Therefore, unlike Clojure, keys cannot consist of arbitrary types.
+_wisp_ does not have value-to-value maps; `{}` denotes dictionaries that
+map to plain JavaScript objects. Keys cannot consist of arbitrary types:
 
-```clojure
+```lisp
 { "foo" bar :beep-bop "bop" 1 2 }
 ```
-Like with vectors, commas are optional but can come handy for separating key value pairs.
 
-```clojure
-{ :a 1, :b 2 }
+#### Sets
+
+`#{}` denotes a JavaScript `Set`:
+
+```lisp
+#{1 2 3}
+```
+
+Like keywords, sets can be invoked as functions to test membership:
+
+```lisp
+(#{1 2 3} 2) ; => 2 (the member)
+(#{1 2 3} 4) ; => nil
 ```
 
 #### Lists
 
-What would be a LISP without lists? _wisp_ being homoiconic, its
-code is made up of lists representing expressions.
+What would be a LISP without lists? _wisp_ being homoiconic, its code is
+made up of lists representing expressions.
 
-As in other LISPs, the first item of an expression is an operator or function that takes the remainder of the list as arguments, and compiles accordingly to JavaScript:
+As in other LISPs, the first item of an expression is an operator or
+function that takes the remainder of the list as arguments, and compiles
+accordingly to JavaScript:
 
-
-```clojure
+```lisp
 (foo bar baz) ; => foo(bar, baz);
 ```
 
-The compiled JavaScript is quite unlikely to end up with lists as they primarily serve their purpose at compile time. Nevertheless lists are supported and can be used (more further down)
+At runtime, lists are built with `list` and `cons` and print with parens:
+
+```lisp
+(list 1 2 3) ; => (1 2 3)
+(cons 1 nil) ; => (1)
+```
+
+The compiled JavaScript is quite unlikely to end up with lists as they
+primarily serve their purpose at compile time.
 
 #### Arrays
 
-_wisp_ partially emulates Clojure(Script) handling of arrays in two ways:
+_wisp_ handles JavaScript indexing in three ways:
 
-1. By using `get`, which compiles to guarded access in JavaScript:
+1. With `get`, which compiles to guarded access:
 
-```clojure
-(get [1 2 3] 1) ; => ([1, 2, 3] || 0)[0]
+```lisp
+(get [1 2 3] 1) ; => 2
 ```
 
-2. By using `aget`, which compiles to unguarded access and can (for the moment) also be used to perform item assignments:
+2. With `aget` (or its alias `aref`), which compiles to unguarded access:
 
-```clojure
-(aget an-array 2) ; => anArray[2];
-(set! (aget an-array 2) "bar") ; => anArray[2] = "bar";
+```lisp
+(aget an-array 2)  ; => anArray[2];
+(aref an-array 2)  ; => anArray[2];
 ```
 
-(`aset` will be added ASAP for symmetry, but you can easily define an equivalent macro for the moment)
+3. Place assignment with `setf` (see [Assignments](#assignments)):
+
+```lisp
+(setf (aref an-array 2) "bar") ; => anArray[2] = "bar";
+```
 
 ## Conventions
 
-_wisp_ tries very hard to compile to JavaScript that feels hand-crafted while trying to embrace LISP-style idioms and naming conventions, and translates them to equivalent JavaScript conventions:
+_wisp_ tries very hard to compile to JavaScript that feels hand-crafted
+while embracing LISP-style idioms and naming conventions, and translates
+them to equivalent JavaScript conventions:
 
-```clojure
-(dash-delimited)   ; => dashDelimited
-(predicate?)       ; => isPredicate
-(**privates**)     ; => __privates__
-(list->vector)     ; => listToVector
+```lisp
+dash-delimited ; => dashDelimited
+predicate?     ; => isPredicate
+**privates**   ; => __privates__
+list->vector   ; => listToVector
 ```
 
-This makes for very natural-looking code, but also allows some things to be expressed in different ways. For instance, the following function invocations will translate to the same things:
+This makes for very natural-looking code, but also allows some things to
+be expressed in different ways. For instance, the following invocations
+translate to the same thing:
 
-```clojure
+```lisp
 (parse-int x)
 (parseInt x)
 
@@ -158,332 +200,393 @@ This makes for very natural-looking code, but also allows some things to be expr
 (isArray x)
 ```
 
+The naming convention for predicates is a `p` / `-p` suffix — `nilp`,
+`string-p` — but a trailing `?` still compiles (`nil?` munges to
+`isNil`).
 
 ## Special forms
 
-There are some special operators in _wisp_ in the sense that
-they compile to JavaScript expressions rather then function calls.
+There are some special operators in _wisp_ in the sense that they compile
+to JavaScript expressions rather than function calls.
 
-Identically-named functions are also available in the standard library to allow function composition.
+Identically-named functions are also available in the standard library to
+allow function composition.
 
 #### Arithmetic operations
 
 _wisp_ comes with special forms for common arithmetic:
 
-```clojure
+```lisp
 (+ a b)        ; => a + b
 (+ a b c)      ; => a + b + c
 (- a b)        ; => a - b
 (* a b c)      ; => a * b * c
 (/ a b)        ; => a / b
-(mod a b)      ; => a % 2
+(mod a b)      ; => a % b
 ```
 
 #### Comparison operations
 
 ...and special forms for common comparisons:
 
-```clojure
+```lisp
 (identical? a b)     ; => a === b
-(identical? a b c)   ; => a === b && b === c
-(= a b)              ; => a == b
-(= a b c)            ; => a == b && b == c
+(= a b)              ; structural equality (deep, like Clojure's =)
+(= a b c)            ; all equal to each other
 (> a b)              ; => a > b
 (>= a b)             ; => a >= b
 (< a b c)            ; => a < b && b < c
 (<= a b c)           ; => a <= b && b <= c
 ```
 
+Note that `=` is *value* equality — vectors, lists and maps compare
+structurally — while `identical?` is reference equality (`===`).
+
 #### Logical and bitwise operations
 
 ...and special forms for logical and bitwise operations:
 
-```clojure
+```lisp
 (and a b)            ; => a && b
 (and a b c)          ; => a && b && c
 (or a b)             ; => a || b
+(not a)              ; => !a
 (and (or a b)
      (and c d))      ; (a || b) && (c && d)
 ```
 
-```clojure
+```lisp
 (bit-and a b)                  ; => a & b
 (bit-or a b)                   ; => a | b
 (bit-xor a b)                  ; => a ^ b
 (bit-shift-left a 2)           ; => a << 2
 (bit-shift-right b 3)          ; => b >> 3
-(bit-shift-right-zero-fil a 1) ; => a >>> 1
+(bit-shift-right-zero-fill a 1); => a >>> 1
 ```
 
 #### Definitions
 
-Variable definitions also happen through special forms:
+Variable and function definitions happen through special forms:
 
-```clojure
-(def a)     ; => var a = void(0);
-(def b 2)   ; => var b = 2;
+```lisp
+(defvar a)     ; => var a = null;
+(defvar b 2)   ; => var b = 2;
+(defconst c 3) ; a constant by convention -- never reassigned
 ```
+
+Functions are defined with `defun`, taking the parameter list first and an
+optional docstring after it:
+
+```lisp
+(defun sum
+  (x y)
+  "Return the sum of x and y"
+  (+ x y))
+```
+
+Top-level definitions are exported from the module by default. A trailing
+dash marks a definition as module-private: `defun-`, `defvar-`,
+`defconst-` (see [Exporting Symbols](#exporting-symbols)).
 
 #### Assignments
 
-In _wisp_ variables can be set to new values via the `set!` special form.
+Bindings can be rebound with `setq`:
 
-Note that in functional programing binding changes are a bad practice (avoiding these will improve the quality and testability of your code), but there are always cases where this is required for JavaScript interoperability:
-
-```clojure
-(set! a 1) ; => a = 1
+```lisp
+(setq a 1) ; => a = 1
 ```
-The `!` suffix is a useful visual reminder that you're causing a side-effect.
+
+`setf` generalizes assignment to *places* — property access and indexed
+elements:
+
+```lisp
+(setf (.-foo obj) 1)           ; => obj.foo = 1
+(setf (aref an-array 2) "bar") ; => anArray[2] = "bar";
+```
+
+Note that in functional programing binding changes are a bad practice
+(avoiding these will improve the quality and testability of your code),
+but there are always cases where this is required for JavaScript
+interoperability.
 
 #### Conditionals
 
-Conditional code branching in _wisp_ is expressed via the `ìf` special form.
+Conditional code branching in _wisp_ is expressed via the `if` special
+form.
 
-As usual, the first expression following `if` is a condition - if it evaluates to `true` the result of the `if` form will be the second expression, otherwise it'll be the third "else" expression:
+The first expression following `if` is a condition — if it evaluates to
+truthy the result of the `if` form is the second expression, otherwise it
+is the *else tail*, which is an implicit `progn`:
 
-```clojure
+```lisp
 (if (< number 10)
   "Digit"
   "Number")
 ```
 
-The third ("else") expression is optional, and if missing and the conditional evaluates to `true` the result will be `nil`.
+The else tail is optional, and if missing when the conditional evaluates
+to falsy the result is `nil`:
 
-```clojure
-(if (monday? today) "How was your weekend")
+```lisp
+(if (monday-p today) "How was your weekend")
 ```
 
-The form `cond` is also available:
+`when` and `unless` are sugar over `if` for the single-branch case:
 
-```clojure
+```lisp
+(when (monday-p today) "How was your weekend")
+(unless (monday-p today) "Enjoy your week")
+```
+
+The form `cond` takes parenthesized clauses:
+
+```lisp
 (cond
-  (monday? today)  "How was your weekend"
-  (friday? today)  "Enjoy your weekend"
-  (weekend? today) "Huzzah weekend"
-  :else "Some other day")
+  ((monday-p today)  "How was your weekend")
+  ((friday-p today)  "Enjoy your weekend")
+  ((weekend-p today) "Huzzah weekend")
+  (else "Some other day"))
 ```
 
-Each term is evaluated in sequence until it evaluates to true. If none are true,
-the form evaluates to `undefined`.
+Each clause is evaluated in sequence until its test is truthy, and the
+value of the clause is the value of its body. If no clause matches, the
+form evaluates to `nil`. `else` is the catch-all clause.
 
 #### Combining expressions
 
-In _wisp_ everything is an expression, but sometimes one might want to combine multiple expressions into one, usually for the purpose of evaluating expressions that have side-effects. That's where `do` comes in:
+In _wisp_ everything is an expression, but sometimes one might want to
+combine multiple expressions into one, usually for the purpose of
+evaluating expressions that have side-effects. That's where `progn` comes
+in:
 
-```clojure
-(do
+```lisp
+(progn
   (console.log "Computing sum of a & b")
   (+ a b))
 ```
 
-`do` can take any number of expressions (including `0`, in which case it will evaluate to `nil`):
-
-```clojure
-(do) ; => nil
-```
+`progn` can take any number of expressions (including `0`, in which case
+it evaluates to `nil`).
 
 #### Bindings
 
-The `let` special form evaluates sub-expressions in a lexical context in which symbols in its binding-forms (first item) are bound to their respective expression results:
+The `let` special form evaluates sub-expressions in a lexical context in
+which symbols in its binding list are bound to their respective
+expression results. `let` binds *in parallel* — each initializer sees
+only the outer scope:
 
-```clojure
-(let [a 1
-      b (+ a 1)]
-  (+ a b))
-; => 3
+```lisp
+(defvar a 10)
+(let ((a 1)
+      (b a))  ; b is the OUTER a, 10
+  b)          ; => 10
 ```
 
+`let*` binds *sequentially* — each binding sees the previous ones:
+
+```lisp
+(let* ((a 1)
+       (b (+ a 1)))
+  (+ a b))    ; => 3
+```
+
+Destructuring is supported in bindings and parameter lists, both
+positional `[a b]` and associative `{:keys [k]}`.
 
 #### Functions
 
-_wisp_ functions are plain JavaScript functions
+_wisp_ functions are plain JavaScript functions:
 
-```clojure
-(fn [x] (+ x 1)) ; => function(x) { return x + 1; }
+```lisp
+(lambda (x) (+ x 1)) ; => function(x) { return x + 1; }
 ```
 
-_wisp_ functions can have names, just as in JavaScript
+_wisp_ functions can have names, just as in JavaScript:
 
-```clojure
-(fn increment [x] (+ x 1)) ; => function increment(x) { return x + 1; }
+```lisp
+(lambda increment (x) (+ x 1)) ; => function increment(x) { return x + 1; }
 ```
 
-_wisp_ function _declarations_ can also contain documentation and some metadata:
+A named `lambda` can refer to itself by name for recursion, and its body
+keeps the surrounding `this` and `arguments`.
 
-```clojure
-(defn sum
-  "Return the sum of all arguments"
-  {:version "1.0"}
-  [x] (+ x 1))
+Most functions are defined with `defun`, which also accepts a docstring:
+
+```lisp
+(defun increment
+  (x)
+  "Return x plus one"
+  (+ x 1))
 ```
-
-Function _expressions, though, can only have names:
-
-```clojure
-(fn increment
-  {:added "1.0"}
-  [x] (+ x 1))
-```
-
-_Note: Docstrings and metadata are not included in compiled JavaScript yet, but support for that is planned._
 
 #### Arguments
 
-_wisp_ makes capturing of remaining (`rest`) arguments a lot easier than JavaScript. An argument that follows an ampersand (`&`) symbol will capture the remaining args in a standard vector (i.e., array).
+An argument that follows `&rest` captures the remaining arguments as a
+list:
 
-```clojure
-(fn [x & rest]
-  (rest.reduce (fn [sum x] (+ sum x)) x))
+```lisp
+(defun sum
+  (x &rest more)
+  (reduce + x more))
 ```
 
-#### Overloading Functions
+An argument that follows `&optional` is `nil` when not supplied, and may
+carry a default form:
 
-In _wisp_ functions can be overloaded depending on arity (the number of arguments they take), without introspection of remaining arguments.
-
-```clojure
-(fn sum
-  "Return the sum of all arguments"
-  {:version "1.0"}
-  ([] 0)
-  ([x] x)
-  ([x y] (+ x y))
-  ([x & more] (more.reduce (fn [x y] (+ x y)) x)))
+```lisp
+(defun greet
+  (&optional (who "world"))
+  (str "hello, " who))
 ```
 
-If a function does not have variadic overload and more arguments are passed to it, it throws an exception.
-
-```clojure
-(fn
-  ([x] x)
-  ([x y] (- x y)))
-```
+Arity overloading (`(lambda ((x) ...) ((x y) ...))`) is not part of the
+language — `&optional` and `&rest` cover its uses.
 
 #### Loops and TCO
 
-A classic way to build a loop in LISP is via recursion,  _wisp_ provides a `loop` `recur` construct that allows for tail call optimization:
+A classic way to build a loop in LISP is via recursion. _wisp_ provides a
+`loop` / `recur` construct that allows for tail call optimization. The
+bindings are a parenthesized list of `(name init)` pairs:
 
-```clojure
-(loop [x 10]
+```lisp
+(loop ((x 10))
   (if (> x 1)
-    (print x)
-    (recur (- x 2))))
+    (progn
+      (print x)
+      (recur (- x 2)))))
 ```
+
+`recur` jumps back to the loop head with new bindings; a `loop` with no
+bindings is written `(loop () …)`.
+
+The standard library also provides `while`, `dotimes` and lazy `for`
+macros on top of `loop` / `recur`.
 
 ## Other Special Forms
 
 ### Instantiation
 
-In _wisp_ type instantiation has a concise form, by way of suffixing the function with a period (`.`):
+In _wisp_ type instantiation has a concise form, by way of suffixing the
+function with a period (`.`):
 
-```clojure
+```lisp
 (Type. options)
 ```
 
 However, the more verbose but more JavaScript-like form is also valid:
 
-```clojure
+```lisp
 (new Class options)
 ```
 
 #### Method calls
 
-In _wisp_ method calls are no different from function calls, but prefixed with a period (`.`):
+In _wisp_ method calls are no different from function calls, but
+prefixed with a period (`.`):
 
-```clojure
+```lisp
 (.log console "hello wisp")
 ```
 
 ...and, of course, the more JavaScript-like forms are supported too:
 
-```clojure
+```lisp
 (window.addEventListener "load" handler false)
 ```
 
 #### Attribute access
 
-In _wisp_, attribute access is also treated like a function call, but attributes need to be prefixed with `.-`:
+In _wisp_, attribute access is also treated like a function call, but
+attributes need to be prefixed with `.-`:
 
-```clojure
+```lisp
 (.-location window)
 ```
 
-Compound properties can be accessed via the `get` special form:
+Compound properties can be accessed via `get` or `aref`:
 
-```clojure
+```lisp
 (get templates (.-id element))
+```
+
+Assignment to attributes and elements goes through `setf`:
+
+```lisp
+(setf (.-location window) "http://example.com")
 ```
 
 #### Catching Exceptions
 
-In _wisp_ exceptions can be handled via the `try` special form. As with everything
-else, the `try` form is also an expression that evaluates to `nil` if no handling
-takes place.
+In _wisp_ exceptions can be handled via the `try` special form. As with
+everything else, the `try` form is also an expression that evaluates to
+`nil` if no handling takes place.
 
-```clojure
+```lisp
 (try (raise exception))
 ```
 
-...the `catch` form can be used to handle exceptions...
+...the `catch` clause can be used to handle exceptions...
 
-```clojure
+```lisp
 (try
   (raise exception)
-  (catch error (.log console error)))
+  (catch error (console.log error)))
 ```
 
 ...and the `finally` clause can be used too:
 
-```clojure
+```lisp
 (try
   (raise exception)
   (catch error (recover error))
-  (finally (.log console "That was a close one!")))
+  (finally (console.log "That was a close one!")))
 ```
-
 
 #### Throwing Exceptions
 
-In a non-idiomatic twist (but largely for symmetry and JavaScript interop), the `throw` special form allows throwing exceptions:
+The `throw` special form allows throwing exceptions:
 
-```clojure
-(fn raise [message] (throw (Error. message)))
+```lisp
+(defun raise (message) (throw (Error. message)))
 ```
 
 ## Macros
 
-_wisp_ has a powerful programmatic macro system which allows the compiler to
-be extended by user code.
+_wisp_ has a powerful programmatic macro system which allows the compiler
+to be extended by user code.
 
-Many core constructs of _wisp_ are in fact normal macros, and you are encouraged to study the source to learn how to build your own. Nevertheless, the following sections are a quick primer on macros.
+Many core constructs of _wisp_ are in fact normal macros, and you are
+encouraged to study the source to learn how to build your own.
+Nevertheless, the following sections are a quick primer on macros.
 
 #### quote
 
-Before diving into macros too much, we need to learn a few more
-things. In LISP any expression can be quoted to prevent it from being
-evaluated.
+Before diving into macros too much, we need to learn a few more things.
+In LISP any expression can be quoted to prevent it from being evaluated.
 
-As an example, take the symbol `foo` - by default, you will be
-evaluating the reference to its corresponding value:
+As an example, take the symbol `foo` — by default, you will be evaluating
+the reference to its corresponding value:
 
-```clojure
+```lisp
 foo
 ```
 
 But if you wish to refer to the literal symbol, this is how you do it:
 
-```clojure
+```lisp
 (quote foo)
 ```
 
 or, as shorthand:
 
-```clojure
+```lisp
 'foo
 ```
 
-Any expression can be quoted to prevent its evaluation (these are not, however, compiled to JavaScript):
+Any expression can be quoted to prevent its evaluation (these are not,
+however, compiled to JavaScript):
 
-```clojure
+```lisp
 'foo
 ':bar
 '(a b)
@@ -491,96 +594,94 @@ Any expression can be quoted to prevent its evaluation (these are not, however, 
 
 #### An Example Macro
 
-_wisp_ doesn't have the `unless` special form or a macro, but it's trivial
-to implement it via macros.
+Let's implement `unless` as a function first, to understand the use case
+for macros:
 
-But it's useful to try implementing it as a function to understand a use case for macros, so let's get started:
-
-`unless` is easy to understand -- we want to execute a `body` unless a given `condition` is `true`:
-
-```clojure
-(defn unless-fn [condition body]
+```lisp
+(defun unless-fn (condition body)
   (if condition nil body))
 ```
 
-But since function arguments are evaluated before the function itself is called, the following code will _always_ write a log message:
+But since function arguments are evaluated before the function itself is
+called, the following code will _always_ write a log message:
 
-```clojure
+```lisp
 (unless-fn true (console.log "should not print"))
 ```
 
 Macros solve this problem, because they do not evaluate their arguments
-immediately. Instead, you get to choose when (and if!) the arguments
-to a macro are evaluated. Macros take items of the expression as
-arguments and return a new form that is compiled instead.
+immediately. Instead, you get to choose when (and if!) the arguments to a
+macro are evaluated. Macros take items of the expression as arguments and
+return a new form that is compiled instead.
 
-```clojure
+```lisp
 (defmacro unless
-  [condition form]
+  (condition form)
   (list 'if condition nil form))
 ```
 
-The body of the `unless` macro executes at macro expansion time, producing an `if`
-form for compilation. This way the compiled JavaScript is a conditional instead of a function call.
+The body of the `unless` macro executes at macro expansion time,
+producing an `if` form for compilation. This way the compiled JavaScript
+is a conditional instead of a function call.
 
-```clojure
+```lisp
 (unless true (console.log "should not print"))
 ```
 
 #### syntax-quote
 
-Simple macros like the above could be written via templating and expressed
-as syntax-quoted forms.
+Simple macros like the above could be written via templating and
+expressed as syntax-quoted forms.
 
-`syntax-quote` is almost the same as plain `quote`, but it allows
-sub expressions to be unquoted so that form acts as a template.
+`syntax-quote` is almost the same as plain `quote`, but it allows sub
+expressions to be unquoted so that the form acts as a template.
 
-The symbols inside the form are resolved to help prevent inadvertent symbol capture, which can be done via `unquote` and `unquote-splicing` forms.
+The symbols inside the form are resolved to help prevent inadvertent
+symbol capture, which can be done via `unquote` and `unquote-splicing`
+forms:
 
-```clojure
+```lisp
 (syntax-quote (foo (unquote bar)))
 (syntax-quote (foo (unquote bar) (unquote-splicing bazs)))
 ```
 
 Note that there is special syntactic sugar for both unquoting operators:
 
-1. Syntax quote: Quote the form, but allow internal unquoting so that the form acts
-as template. Symbols inside the form are resolved to help prevent inadvertent symbol
-capture.
+1. Syntax quote: Quote the form, but allow internal unquoting so that
+   the form acts as a template. Symbols inside the form are resolved to
+   help prevent inadvertent symbol capture.
 
-```clojure
+```lisp
 `(foo bar)
 ```
 
-2. Unquote: Use inside a syntax-quote to substitute an unquoted value.
+2. Unquote (`,`): Use inside a syntax-quote to substitute an unquoted
+   value.
 
-```clojure
-`(foo ~bar)
+```lisp
+`(foo ,bar)
 ```
 
-3. Splicing unquote: Use inside a syntax-quote to splice an unquoted
-list into a template.
+3. Splicing unquote (`,@`): Use inside a syntax-quote to splice an
+   unquoted list into a template.
 
-```clojure
-`(foo ~bar ~@bazs)
+```lisp
+`(foo ,bar ,@bazs)
 ```
 
-For example, the built-in `defn` macro can be defined with a simple
-template macro. That's more or less how the built-in `defn` macro is implemented.
+For example, a `define-var` macro can be defined with a simple template:
 
-```clojure
-(defmacro define-fn
-  [name & body]
-  `(def ~name (fn ~@body)))
+```lisp
+(defmacro define-var
+  (name &rest body)
+  `(defvar ,name ,@body))
 ```
 
-Now if we use `define-fn` form above, the defined macro will be expanded
-at compile time, resulting into different program output.
+Now if we use the `define-var` form above, the defined macro will be
+expanded at compile time, resulting in different program output:
 
-```clojure
-(define-fn print
-  [message]
-  (.log console message))
+```lisp
+(define-var answer 42)
 ```
 
 Not all of the macros can be expressed via templating, but all of the
@@ -588,8 +689,9 @@ language is available to assemble macro expanded forms.
 
 #### Another Macro Example
 
-As an example, let's define a macro to ease functional chaining, a technique popular
-in JavaScript but usually expressed via method chaining. A typical use of that would be something like:
+As an example, let's define a macro to ease functional chaining, a
+technique popular in JavaScript but usually expressed via method
+chaining. A typical use of that would be something like:
 
 ```javascript
 open(target, "keypress").
@@ -598,15 +700,19 @@ open(target, "keypress").
   reduce(render)
 ```
 
-Unfortunately, though, it usually requires that all the chained functions need to be methods of an object, which is very limited and has the undesirable effect of making third party functions "second class".
+Unfortunately, though, it usually requires that all the chained functions
+need to be methods of an object, which is very limited and has the
+undesirable effect of making third party functions "second class".
 
-But using macros we can achieve similar chaining without such tradeoffs, and chain _any_ function:
+But using macros we can achieve similar chaining without such tradeoffs,
+and chain _any_ function (this is the `->` threading macro, which ships
+with the standard library):
 
-```clojure
+```lisp
 (defmacro ->
-  [& operations]
+  (&rest operations)
   (reduce
-   (fn [form operation]
+   (lambda (form operation)
      (cons (first operation)
            (cons form (rest operation))))
    (first operations)
@@ -614,7 +720,7 @@ But using macros we can achieve similar chaining without such tradeoffs, and cha
 
 (->
  (open target :keypress)
- (filter enter-key?)
+ (filter enter-key)
  (map get-input-text)
  (reduce render))
 ```
@@ -625,31 +731,27 @@ But using macros we can achieve similar chaining without such tradeoffs, and cha
 
 All the top level definitions in a file are exported by default:
 
-```clojure
-(def foo bar)
-(defn greet [name] (str "hello " name))
+```lisp
+(defvar foo bar)
+(defun greet (name) (str "hello " name))
 ```
 
-...but it's still possible to define top level bindings without exporting them via `^:private` metadata:
+...but it's possible to define top-level bindings without exporting them
+via the trailing-dash defining forms:
 
-```clojure
-(def ^:private foo bar)
+```lisp
+(defvar- foo bar)
+(defun- greet (name) (str "hello " name))
+(defconst- default-name "world")
 ```
-
-...and a little syntax sugar for functions:
-
-```clojure
-(defn- greet [name] (str "hello " name))
-```
-
 
 ### Importing
 
 Module importing is done via an `ns` special form that is manually
-named. Unlike `ns` in Clojure(Script), _wisp_ takes a minimalistic
-approach and supports only one essential way of importing modules:
+named. _wisp_ takes a minimalistic approach and supports only one
+essential way of importing modules:
 
-```clojure
+```lisp
 (ns interactivate.core.main
   "interactive code editing"
   (:require [interactivate.host :refer [start-host!]]
@@ -664,115 +766,116 @@ Let's go through the above example to get a complete picture regarding
 how modules can be imported:
 
 1. The first parameter `interactivate.core.main` is a name of the
-module / namespace. In this case it represents module
-`./core/main` under the package `interactivate`. While this is
-not enforced in any way the common convention is that these mirror the filesystem hierarchy.
+   module / namespace. In this case it represents module
+   `./core/main` under the package `interactivate`. While this is
+   not enforced in any way the common convention is that these mirror
+   the filesystem hierarchy.
 
 2. The second string parameter is just a description of the module
-and is completely optional.
+   and is completely optional.
 
 3. The `(:require ...)` form defines dependencies that will be
-imported at runtime, and the example above imports multiple modules:
+   imported at runtime, and the example above imports multiple modules:
 
-  1. First it imports the `start-host!` function from the
-     `interactivate.host` module. That will be loaded from the
-     `../host` location, since because module paths are resolved
-     relative to a name, but only if they share the same root.
-  2. The second form imports `fs` module and makes it available under
-     the same name. Note that in this case it could have been
-     written without wrapping it in brackets.
-  3. The third form imports `wisp.backend.javascript.writer` module
-     from `wisp/backend/javascript/writer` and makes it available
-     via the name `writer`.
-  4. The last and most complex form imports `first` and `rest`
-     functions from the `wisp.sequence` module, although it also
-     renames them and there for makes available under different
-     `car` and `cdr` names.
+   1. First it imports the `start-host!` function from the
+      `interactivate.host` module. That will be loaded from the
+      `../host` location, since module paths are resolved
+      relative to a name, but only if they share the same root.
+   2. The second form imports `fs` module and makes it available under
+      the same name. Note that in this case it could have been
+      written without wrapping it in brackets.
+   3. The third form imports `wisp.backend.javascript.writer` module
+      from `wisp/backend/javascript/writer` and makes it available
+      via the name `writer`.
+   4. The last and most complex form imports `first` and `rest`
+      functions from the `wisp.sequence` module, although it also
+      renames them and therefore makes them available under the
+      `car` and `cdr` names.
 
 While Clojure has many other kinds of reference forms they are
 not recognized by _wisp_ and will therefore be ignored.
 
 ### Types and Protocols
 
-In wisp protocols can be defined same as in Clojure(Script),
-via [defprotocol](http://clojuredocs.org/clojure_core/clojure.core/defprotocol):
+Protocols are defined via `defprotocol`:
 
-```clojure
+```lisp
 (defprotocol ISeq
-  (-first [coll])
-  (-rest [coll]))
+  (-first (coll))
+  (-rest (coll)))
 
 (defprotocol ICounted
-  (^number count [coll] "constant time count"))
+  (count (coll) "constant time count"))
 ```
 
 Above code will define `ISeq`, `ICounted` protocols (objects representing
-those protocol) and `_first`, `_rest`, `count` functions, that dispatch on
-first argument (that must implement associated protocol).
+those protocols) and `-first`, `-rest`, `count` functions, that dispatch
+on the first argument (that must implement the associated protocol).
 
+Existing types / classes (defined either in wisp or JS) can be extended
+to implement a specific protocol using `extend-type`:
 
-Existing types / classes (defined either in wisp or JS) can be
-extended to implement specific protocol using
-[extend-type](http://clojuredocs.org/clojure_core/clojure.core/extend-type):
-
-```clojure
+```lisp
 (extend-type Array
   ICounted
-  (count [array] (.-length array))
+  (count (array) (.-length array))
   ISeq
-  (-first [array] (aget array 0))
-  (-rest [array] (.slice array 1)))
+  (-first (array) (aget array 0))
+  (-rest (array) (.slice array 1)))
 ```
 
-Once type / class implemnets some protocol, it's functions can be used
-on the instances of that type / class.
+Once a type / class implements a protocol, its functions can be used on
+the instances of that type / class:
 
-```clojure
+```lisp
 (count [])        ;; => 0
 (count [1 2])     ;; => 2
 (-first [1 2 3])  ;; => 1
 (-rest [1 2 3])   ;; => [2 3]
 ```
 
-In wisp value can be checked to satisfy given protocol same as in
-Clojure(Script) via [satisfies?](http://clojuredocs.org/clojure_core/clojure.core/satisfies_q):
+A value can be checked against a protocol via `satisfies?`:
 
-```clojure
+```lisp
 (satisfies? ICounted [1 2])
 (satisfies? ISeq [])
 ```
 
-New types (that translate to JS classes) can be defined same as in
-Clojure(Script) via [deftype](http://clojuredocs.org/clojure_core/clojure.core/deftype)
-form:
+New types (that translate to JS classes) can be defined via the
+`deftype` form:
 
-```clojure
-(deftype List [head tail size]
+```lisp
+(deftype List (head tail size)
   ICounted
-  (count [_] size)
+  (count (_) size)
   ISeq
-  (-first [_] head)
-  (-rest [_] tail)
+  (-first (_) head)
+  (-rest (_) tail)
   Object
-  (toString [self] (str "(" (join " " self) ")")))
+  (toString (self) (str "(" (join " " self) ")")))
 ```
 
 Note: Protocol functions are defined as methods with unique names
-(that include namespace info where protocol was defined, protocol
+(that include namespace info where the protocol was defined, protocol
 name & method name) to avoid name collisions on types / classes
-implementing them. This implies that such methods aren't very
-useful from JS side. Special `Object` protocol can be used to
-define methods who's names will be kept as is, which can be used
-to define interface to be used from JS side (like `toString`
-method above).
+implementing them. This implies that such methods aren't very useful
+from the JS side. The special `Object` protocol can be used to define
+methods whose names will be kept as-is, which can be used to define an
+interface to be used from the JS side (like the `toString` method
+above).
 
-In wisp multiple types can be extended to implement a specific
-protocol using [extend-protocol](http://clojuredocs.org/clojure_core/clojure.core/extend-protocol)
-form same as in Clojure(Script) too.
+Multiple types can be extended to implement a specific protocol using
+the `extend-protocol` form. A `default` extension covers all remaining
+values:
 
-[homoiconicity]:http://en.wikipedia.org/wiki/Homoiconicity
-[clojure]:http://clojure.org/
-[macros]:http://clojure.org/macros
-[s-expressions]:http://en.wikipedia.org/wiki/S-expression
-[clojurescript]:https://github.com/clojure/clojurescript
-[markdown]:http://daringfireball.net/projects/markdown/
+```lisp
+(extend-protocol INope
+  number
+  (nope? (x) true)
+
+  default
+  (nope? (x) false))
+```
+
+[homoiconicity]: http://en.wikipedia.org/wiki/Homoiconicity
+[s-expressions]: http://en.wikipedia.org/wiki/S-expression

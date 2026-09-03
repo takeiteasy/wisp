@@ -1,12 +1,12 @@
-# new-syntax — the traditional-Lisp dialect (design spec)
+# wisp — the language
 
-> **Status: implemented on the `new-syntax` branch.** The compiler self-hosts
-> this dialect there: reader/expander/analyzer grammar, the nil singleton
-> runtime, the full `src/` + `test/` rewrite, and the transitional bootstrap
-> with a re-seeded (not yet pushed) stage-0. Still open: the arrow form
-> (`lambda*` / `defplugin`) and async/await, tracked separately. When the
-> branch merges, this file becomes `docs/language.md` and the master docs,
-> examples and README are rewritten.
+> The surface syntax is a small traditional Lisp that compiles to readable
+> JavaScript. The compiler self-hosts it: the reader/expander/analyzer
+> grammar, the `nil` singleton runtime, the standard library, and the
+> `stage-0` bootstrap seed all speak this dialect. The arrow form
+> (`lambda*` / `defplugin`) and async/await are specified below and planned;
+> see the tracker for their status. The tutorial reference lives in
+> [language-essentials.md](language-essentials.md).
 
 ## Why
 
@@ -96,11 +96,11 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 (defun- name (params…) body…)      ; same, not exported
 (lambda (params…) body…)           ; anonymous function expression
 (lambda name (params…) body…)      ; named, for self-recursion
-(lambda* (params…) body…)          ; ARROW function — no .prototype, no this/arguments   [tracked: arrow-form task]
-(defplugin name (ctx config) body…); macro → (defvar name (lambda* (ctx config) body…)) + plugin metadata   [tracked: arrow-form task]
+(lambda* (params…) body…)          ; ARROW function — no .prototype, no this/arguments   (planned)
+(defplugin name (ctx config) body…); macro → (defvar name (lambda* (ctx config) body…)) + plugin metadata   (planned)
 
-(defun-async  name (params…) body…); async function                                       [tracked: async task]
-(lambda-async (params…) body…)     ; async anonymous function                             [tracked: async task]
+(defun-async  name (params…) body…); async function                                       (planned)
+(lambda-async (params…) body…)     ; async anonymous function                             (planned)
 ```
 
 - `lambda` compiles to a **named `function` expression** — keeps `this`,
@@ -146,11 +146,11 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 ```
 (quote x)   `x   ,x   ,@x
 (defmacro name (params…) body…)
-(async expr)                        ; expr as an async IIFE / marks the enclosing fn   [tracked: async task]
-(await expr)                        ; only valid lexically inside an async function     [tracked: async task]
+(async expr)                        ; expr as an async IIFE / marks the enclosing fn   (planned)
+(await expr)                        ; only valid lexically inside an async function    (planned)
 ```
 
-### kept from wisp-as-is for v1 (revisit after cutover)
+### kept for v1 (revisit later)
 
 - `loop` / `recur` — no TCO on the platform, so kept.
 - threading macros `->` `->>` `as->` `some->` — library macros, not specials.
@@ -229,27 +229,6 @@ the `with-meta` / `meta` functions stay for AST work.
   to `defun-` for "not exported".
 - `*earmuffs*` for special/config-ish module vars — convention only.
 
-## Old → new cheat sheet
-
-| Clojure-wisp | new-syntax |
-|---|---|
-| `(defn f [a b] …)` | `(defun f (a b) …)` |
-| `(defn- f [a] …)` | `(defun- f (a) …)` |
-| `(fn [a] …)` / `(fn g [a] …)` | `(lambda (a) …)` / `(lambda g (a) …)` |
-| `#(+ % 1)` | `(lambda (x) (+ x 1))` |
-| `(def x 1)` | `(defvar x 1)` |
-| `(def ^:private x 1)` | `(defvar- x 1)` |
-| `(set! x 1)` | `(setq x 1)` |
-| `(set! (.-p o) 1)` / `(aset o k v)` | `(setf (.-p o) 1)` / `(setf (aref o k) v)` |
-| `(do a b)` | `(progn a b)` |
-| `(let [x 1 y 2] …)` | `(let ((x 1) (y 2)) …)` |
-| `[a b & r]` | `(a b &rest r)` |
-| `` `(a ~b ~@c) `` | `` `(a ,b ,@c) `` |
-| `(if c a)` / `(if c a b)` | `(if c a)` / `(if c a b)` |
-| `(cond p x q y :else z)` | `(cond (p x) (q y) (else z))` |
-| `^:async` (planned) | `(defun-async …)` / `(lambda-async …)` |
-| `nil?` idiom | `nilp` / `null` |
-
 ## Worked example
 
 ```lisp
@@ -264,24 +243,13 @@ the `with-meta` / `meta` functions stay for AST work.
 (defun greet (&optional (who default-name))
   "Return a greeting for WHO (defaults to \"world\")."
   (cond ((nilp who)    (shout "hey"))
-        ((stringp who)  (shout (str "hello " who)))
-        (else           (shout (str "hello " (str who))))))
+        ((stringp who) (shout (str "hello " who)))
+        (else          (shout (str "hello " (str who))))))
 
-;; a cordis-style plugin: lambda* so it is not new-ed as a constructor
-(defplugin logger (ctx config)
-  (let ((level (or (aref config "level") "info")))
-    (.on ctx "dispose" (lambda* () (.log js/console "logger: bye")))
-    (ctx.provide "log" (lambda* (msg) (.log js/console (str "[" level "] " msg))))))
+(defun greet-all (&rest names)
+  (map greet names))
 ```
 
 Compiles (shape) to: `example/greet.wisp` → a CommonJS module; `greet` and
-`logger` on `exports`, `default-name` and `shout` module-local; `greet`'s
-optional param defaulting inline; `lambda*` bodies as `() => …`.
-
-## Open questions
-
-- `lambda*` vs `=>` for the arrow form.
-- whether `defconst-` is worth having separately from `defvar-`.
-- `:export` clause on the module form vs the trailing-dash forms.
-- `ns` → `(require 'x)` / `(provide 'x)` rename, and `.`-vs-`/` in module
-  names — deferred, but listed so they are not forgotten.
+`greet-all` on `exports`, `default-name` and `shout` module-local;
+`greet`'s optional param defaulting inline.
