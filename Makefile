@@ -186,6 +186,7 @@ wisc-check: $(WISC)
 	@$(WISC) -e '(defvar x 6)' -e '(* x 7)' | grep -qx '42'
 	@echo '(+ 1 2)' | $(WISC) -c - | grep -q '^1 + 2;'
 	@printf '(+ 1 2)\n(defun sq (x) (* x x))\n(sq 9)\n:q\n' | $(WISC) -i | sed 's/^user=> //' | grep -qx '81'
+	@$(WISC) -e '(defun-async f (x) (+ x (await (js/Promise.resolve 40))))' -e '(.then (f 2) (lambda (v) (print v)))' | grep -qx '42'
 	@rm -f $(BUILD_DIR)/wisc_check.wisp
 	@echo "wisc-check OK"
 

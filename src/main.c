@@ -284,12 +284,35 @@ static int show_eval_result(JSValue res)
 }
 
 /* ------------------------------------------------------------------ */
+/* job queue */
+
+/* Drains the promise/microtask job queue so async code settles before
+ * we print the next result or exit. Without this, async wisp programs
+ * (and any promise-based library) silently no-op under wisc: nothing
+ * ever executes their continuations. Mirrors spike/driver.c. */
+static void drain_jobs(void)
+{
+    JSContext *c;
+    for (;;) {
+        int r = JS_ExecutePendingJob(rt, &c);
+        if (r < 0) {
+            report_exception("error in pending job:\n");
+            break;
+        }
+        if (r == 0)
+            break;
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /* modes */
 
 static int mode_eval(const char *source)
 {
     JSValue res = call_wisp_str("evaluate", source);
-    return show_eval_result(res);
+    int status = show_eval_result(res);
+    drain_jobs();
+    return status;
 }
 
 /* Compiles source and prints javascript on stdout. */
@@ -324,6 +347,8 @@ static int mode_run(const char *path)
         return 1;
     }
     JS_FreeValue(ctx, res);
+    /* let the program's async work settle before exiting */
+    drain_jobs();
     return 0;
 }
 
@@ -492,6 +517,7 @@ static int repl(int banner)
                 repl_help();
             } else if (strncmp(cmd, ":load ", 6) == 0) {
                 show_eval_result(call_wisp_str("load-file", cmd + 6));
+                drain_jobs();
             } else if (strcmp(cmd, ":load") == 0) {
                 puts("Usage: :load <filename>");
             } else {
@@ -531,6 +557,8 @@ static int repl(int banner)
         default:
             if (meaningful)
                 show_eval_result(call_wisp_str("evaluate", input));
+            /* settle async continuations before the next prompt */
+            drain_jobs();
             break;
         }
 

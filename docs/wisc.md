@@ -99,3 +99,9 @@ src/main.c + bundle.c + libqjs.a --> build/wisc
   the global object (same as the original node REPL).
 - `print` is a macro expanding to `console.log`, which maps to the
   host `print`.
+- **async**: the host drains the QuickJS job queue after every
+  evaluation (`drain_jobs` in `src/main.c`), so `async`/`await` wisp code
+  settles — promises, `.then` chains and `await` all work. The queue is
+  microtask-only: code that re-schedules itself forever (e.g. an
+  infinitely chained `.then`) will never terminate, and `wisc` has no
+  timers, so there is nothing to yield to.
