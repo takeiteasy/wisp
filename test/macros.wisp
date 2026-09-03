@@ -1,8 +1,9 @@
 (ns wisp.test.macros
   (:require [wisp.test.util :refer [is thrown?]]
-            [wisp.runtime :refer [= dictionary? vector? list? lazy-seq? inc odd? keys re-find]]
+            [wisp.runtime :refer [= dictionary? vector? list? lazy-seq? inc odd? keys re-find get]]
             [wisp.sequence :refer [list vec third count range infinite-range take
-                                   lazy-seq empty? first rest cons lazy-concat dorun]]
+                                   lazy-seq empty? first rest cons lazy-concat dorun
+                                   nth drop]]
             [wisp.ast :refer [symbol? name namespace]]
             [wisp.expander :refer [dot-syntax? method-syntax? field-syntax? new-syntax?
                                    keyword-invoke macroexpand macroexpand-1]]))
@@ -385,21 +386,21 @@
                 remaining          (if (dictionary? remaining)
                                      remaining
                                      (apply dictionary (vec remaining)))
-                lest               (get remaining ':lest nil)
-                bar                let-binding#2
-                destructure-bind#2 let-binding#3
-                destructure-bind#2 (if (dictionary? destructure-bind#2)
-                                     destructure-bind#2
-                                     (apply dictionary (vec destructure-bind#2)))
-                category           (get destructure-bind#2 :category-name "Category not found")
-                foo                (get destructure-bind#2 ':foo 42)
-                bar                (get destructure-bind#2 ':bar nil)
-                baz                (get destructure-bind#2 ':baz nil)
-                first-name         (get destructure-bind#2 :first-name nil)
-                last-name          (get destructure-bind#2 :last-name nil)
-                sym-name           (get destructure-bind#2 :symName nil)
-                name               (get destructure-bind#2 ':person/name nil)
-                age                (get destructure-bind#2 ':person/age 0)
+                 lest               (get remaining :lest nil)
+                 bar                let-binding#2
+                 destructure-bind#2 let-binding#3
+                 destructure-bind#2 (if (dictionary? destructure-bind#2)
+                                      destructure-bind#2
+                                      (apply dictionary (vec destructure-bind#2)))
+                 category           (get destructure-bind#2 :category-name "Category not found")
+                 foo                (get destructure-bind#2 :foo 42)
+                 bar                (get destructure-bind#2 :bar nil)
+                 baz                (get destructure-bind#2 :baz nil)
+                 first-name         (get destructure-bind#2 :first-name nil)
+                 last-name          (get destructure-bind#2 :last-name nil)
+                 sym-name           (get destructure-bind#2 :symName nil)
+                 name               (get destructure-bind#2 :person/name nil)
+                 age                (get destructure-bind#2 :person/age 0)
                 hobby              (get destructure-bind#2 :hobby/hobbyName nil)]
            body))))
 
@@ -412,3 +413,22 @@
 
 (is (= (macroexpand-1 '(loop ((foo bar)) baz))
        '(loop* [foo bar] baz)))
+
+
+;; destructuring at runtime -- `let` bindings and parameter lists
+(is (= (let (([a b] [1 2])) (+ a b))
+       3))
+(is (= (let (({:keys [k]} {:k 7})) k)
+       7) ":keys looks the key up the same way map literals store it")
+(is (= (let (({:strs [s]} {"s" 3})) s)
+       3))
+(is (= (let (({:keys [k] :or {k 9}} {})) k)
+       9) ":or supplies the default")
+(is (= (let (([a &rest r] [1 2 3])) r)
+       [2 3]) "&rest in a seq pattern")
+(is (= ((lambda ([a b]) (+ a b)) [1 2])
+       3) "positional destructuring in a param list")
+(is (= ((lambda ({:keys [k]}) k) {:k 5})
+       5) "associative destructuring in a param list")
+(is (= ((lambda (x [a b]) (+ x a b)) 0 [1 2])
+       3) "mixed required and destructured params")

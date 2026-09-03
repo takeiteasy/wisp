@@ -736,7 +736,7 @@
                   (str "Invalid destructure key " k))
           (recur (rest ks) (cond ((= k* :strs) (conj-syms* get* result k v keyword))
                                  ((= k* :syms) (conj-syms* get* result k v (lambda (%1 %2) (symbol %1 (sym* %2)))))
-                                 ((= k* :keys) (conj-syms* get* result k v keyword :quote))
+                                  ((= k* :keys) (conj-syms* get* result k v keyword))
                                  ((number? v)  (conj result k (get* k (symbol (str v)))))
                                  (else        (conj result k (get* k v))))))))))
 
@@ -744,7 +744,7 @@
   (let* ((as       (.find-index binding (lambda (%) (= % ':as))))
         (seq-name (if (< as 0) (gensym :destructure-bind) (nth binding (inc as))))
         (binding1 (if (< as 0) binding (take as binding)))
-        (more     (.find-index binding1 (lambda (%) (= % '&))))
+        (more     (.find-index binding1 (lambda (%) (or (= % '&) (= % '&rest)))))
         (tail     (if (>= more 0) (nth binding1 (inc more))))
         (binding2 (if (< more 0) binding1 (take more binding))))
     (assert (or (< as 0) (= as (- (count binding) 2)))
@@ -853,7 +853,7 @@
             (argv (vec (map-indexed (lambda (%1 %2) (get binds %1 %2)) (:names parsed))))
             (destructuring (if (empty? binds)
                             []
-                            [`(let** ,(destructure (vec (mapcat (lambda (i) [(nth (:names parsed) i) (nth binds i)])
+                            [`(let** ,(destructure (vec (mapcat (lambda (i) [(nth (:names parsed) i) (get binds i)])
                                                                 indices)))
                                 ,@body)]))
             (defaulting (map (lambda (d) `(if (nil? ,(first d)) (set! ,(first d) ,(second d))))
