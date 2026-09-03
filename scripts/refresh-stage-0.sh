@@ -7,9 +7,9 @@
 #
 # SEED_ENTRY overrides the compiler used to produce the payload. Default is
 # the repo's own freshly built compiler (root ./compiler.js, as `make`
-# builds it). When that cannot exist yet -- e.g. seeding the first
-# new-syntax stage-0 on the `new-syntax` branch, where the checked-in
-# stage-0 cannot read src/ at all -- point it at a transitional compiler:
+# builds it). When that cannot exist yet -- e.g. after a language rewrite,
+# where the checked-in stage-0 cannot read src/ at all -- point it at an
+# intermediate compiler:
 #
 #   SEED_ENTRY=transitional/wisp-bootstrap.js ./scripts/refresh-stage-0.sh
 #

@@ -10,9 +10,10 @@
 # `make bootstrap-refresh`). B == C is the property that proves src/*.wisp is a
 # stable fixpoint under its own compiler.
 #
-# SEED_ENTRY overrides the stage-A compiler. Until stage-0 is re-seeded with
-# the new-syntax compiler, src/*.wisp can only be compiled by the transitional
-# hybrid (scripts/build-transitional.sh BASELINE_ONLY=1), so the branch runs:
+# SEED_ENTRY overrides the stage-A compiler. When the checked-in stage-0
+# cannot read the current src/ grammar at all (e.g. after a language
+# rewrite), build the payload through the transitional hybrid first
+# (scripts/build-transitional.sh BASELINE_ONLY=1), then run:
 #
 #   SEED_ENTRY=transitional/wisp-bootstrap.js ./scripts/bootstrap-check.sh
 #

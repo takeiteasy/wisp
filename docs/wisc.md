@@ -12,7 +12,7 @@ Requirements: node/npm (build only — wisp is written in wisp), cmake, a C
 compiler, and git submodules.
 
     git submodule update --init   # fetches vendor/quickjs-ng
-    npm install                   # browserify, minify, escodegen, base64-encode, commander
+    npm install                   # browserify, escodegen, base64-encode, commander
     make                          # extracts the stage-0 compiler, compiles src/*.wisp
     make wisc                     # bundle + quickjs + C frontend -> build/wisc
 
@@ -43,7 +43,7 @@ program as `wisc.args`.
 ### REPL
 
 - prompt `user=> `, continuation `... ` when forms are incomplete
-  (detected with the wisp reader, so multi-line `(defn ...)` works)
+  (detected with the wisp reader, so multi-line `(defun ...)` works)
 - results are printed with `pr-str`; errors go to stderr with stack
 - `*1`, `*2`, `*3` hold recent results
 - history is kept in `~/.wisc_history`
@@ -95,7 +95,7 @@ src/main.c + bundle.c + libqjs.a --> build/wisc
 - quickjs-ng's tokenizer reads one byte past the buffer passed to
   `JS_Eval`, so the embedded bundle is always evaluated from a
   NUL-terminated copy (see `load_bundle` in `src/main.c`).
-- Defs nested inside `(do ...)` blocks land on `exports` rather than
+- Defs nested inside `(progn ...)` blocks land on `exports` rather than
   the global object (same as the original node REPL).
 - `print` is a macro expanding to `console.log`, which maps to the
   host `print`.

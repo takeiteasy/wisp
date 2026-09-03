@@ -71,22 +71,22 @@ default is `bootstrap/wisp-bootstrap.js`.
 
 ## The transitional compiler (`./transitional/`)
 
-The new-syntax rewrite (see `docs/new-syntax.md`) could not be compiled by the
-checked-in stage-0 — its reader only speaks the old grammar. During the
-migration, `scripts/build-transitional.sh` builds `./transitional/`
+`scripts/build-transitional.sh` builds `./transitional/`
 (gitignored, reproducible from scratch): the stage-0 payload with only
 `reader` / `expander` / `analyzer` / `runtime` swapped for their Phase 1/2
 builds, plus a `withMeta` nil guard patched into the baseline `ast.js`.
+It exists to re-derive the bootstrap lineage of the `stage-0` seed from
+scratch — see the file header for the two-stage seeding procedure it
+reproduces.
 
-- `BASELINE_ONLY=1` stops there, emitting the strict hybrid — the seed for the
-  Phase 4 fixpoint check:
+- `BASELINE_ONLY=1` stops there, emitting the strict hybrid:
   ```
   BASELINE_ONLY=1 ./scripts/build-transitional.sh
   SEED_ENTRY=transitional/wisp-bootstrap.js ./scripts/bootstrap-check.sh
   ```
 - Without it, the script additionally recompiles every module from the current
-  new-syntax `src/` through the transitional compiler itself, ending at a fully
-  new-syntax-compiled compiler (how each Phase 3 file was compile-verified).
+  `src/` through the transitional compiler itself, ending at a fully
+  transitional-compiled compiler.
 
 The build drops a `wisp-bootstrap.js` copy at `transitional/`'s root so the
 directory doubles as a `SEED_ENTRY` seed.
@@ -95,8 +95,7 @@ directory doubles as a `SEED_ENTRY` seed.
 
 Rebuilds the `stage-0` payload from the current `src/` and updates the **local**
 `stage-0` branch (it does not push). Run it after landing changes to the
-compiler or codegen — for example once the `?`-in-def-names codegen fix lands —
-so the checked-in seed tracks `src/` again:
+compiler or codegen so the checked-in seed tracks `src/` again:
 
 ```
 make bootstrap-refresh
@@ -106,8 +105,9 @@ make bootstrap-clean && make      # re-extract the local working copy
 
 Implemented in `scripts/refresh-stage-0.sh`. `SEED_ENTRY=<path>` compiles the
 payload from an arbitrary compiler entry instead of the freshly built root
-`./compiler.js` — how the first new-syntax stage-0 was seeded from the
-transitional hybrid while the branch's own build was still unusable:
+`./compiler.js` — for when the checked-in `stage-0` cannot read the current
+`src/` grammar at all and the payload must be compiled through an
+intermediate:
 
 ```
 SEED_ENTRY=transitional/wisp-bootstrap.js ./scripts/refresh-stage-0.sh

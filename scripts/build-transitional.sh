@@ -3,16 +3,16 @@
 # transitional/` or a fresh clone -- no dependency on any prior
 # transitional/ state).
 #
-# ./transitional/ is the working compiler used to compile-verify every
-# file rewritten so far in the new-syntax Phase 3 mechanical port
-# (docs/new-syntax.md). It is gitignored -- this script is what makes it
-# reproducible instead of a hand-assembled pile of one-off `node -e`
-# copies and `cp`s. Run it after: (a) editing any OLD-syntax file below
-# that the transitional compiler itself depends on (e.g. the
-# writer.wisp butlast/params fix, or the build-defun docstring fix), or
-# (b) finishing a NEW-syntax rewrite of one more file, in which case add
-# it to NEW_SYNTAX_FILES (in dependency order, with the git ref of its
-# last OLD-syntax revision -- see below) first.
+# ./transitional/ is a reproducible intermediate compiler, used to re-derive
+# the stage-0 seed's bootstrap lineage across a language rewrite (see
+# docs/language.md for the dialect itself). It is gitignored -- this script
+# is what makes it reproducible instead of a hand-assembled pile of one-off
+# `node -e` copies and `cp`s. Run it after: (a) editing any OLD-syntax file
+# below that the transitional compiler itself depends on (e.g. the
+# writer.wisp butlast/params fix, or the build-defun docstring fix), or (b)
+# finishing a NEW-syntax rewrite of one more file, in which case add it to
+# NEW_SYNTAX_FILES (in dependency order, with the git ref of its last
+# OLD-syntax revision -- see below) first.
 #
 # Two kinds of src/*.wisp file feed this build:
 #
