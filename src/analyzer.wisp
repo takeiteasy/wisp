@@ -188,7 +188,7 @@
                    (symbol? (second attribute))
                    (second attribute))))
     (if (nil? attribute)
-      (syntax-error "Malformed aget expression expected (aget object member)"
+      (syntax-error "Malformed aget/aref expression expected (aget object member)"
                     form)
       {:op :member-expression
        :computed (not field)
@@ -201,6 +201,10 @@
                          {:binding nil})
                    (analyze env attribute))})))
 (install-special! :aget analyze-aget)
+;; `aref` is the traditional-Lisp spelling of the same place access;
+;; the spec (docs/language.md) documents (aref obj key) with `aget` kept
+;; as the alias.
+(install-special! :aref analyze-aget)
 
 (defun parse-def
   (id &rest args)

@@ -322,10 +322,20 @@
 
 
 (is (thrown? (transpile "(aget foo)")
-             #"Malformed aget expression expected \(aget object member\)"))
+             #"Malformed aget/aref expression expected \(aget object member\)"))
 
 (is (= (transpile "(aget foo bar)")
        "foo[bar];"))
+
+;; aref: traditional-Lisp alias for aget
+(is (= (transpile "(aref foo bar)")
+       "foo[bar];"))
+
+(is (= (transpile "(aref array 1)")
+       "array[1];"))
+
+(is (thrown? (transpile "(aref foo)")
+             #"Malformed aget/aref expression expected \(aget object member\)"))
 
 (is (= (transpile "(aget array 1)")
        "array[1];"))
@@ -1092,6 +1102,10 @@
 
 (is (= (transpile "(bit-or a b c d)")
        "a | b | c | d;"))
+
+;; =>
+(is (= (transpile "(bit-shift-right-zero-fill a 1)")
+       "a >>> 1;"))
 
 ;; =>
 
