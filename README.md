@@ -1,4 +1,4 @@
-# wisp
+# wisp2
 
 _wisp_ is a [homoiconic][homoiconicity] Lisp dialect that compiles to
 readable JavaScript — a small traditional Lisp (parens over brackets,
@@ -12,7 +12,10 @@ build, after which the fresh compiler recompiles its own source.
 
 Forked from [wisp][upstream] by @gozala (BSD-3-clause); the surface
 syntax has since diverged toward a traditional Lisp — see
-[docs/language.md](docs/language.md) for the spec.
+[docs/language.md](docs/language.md) for the spec. The original wisp
+code is archived on the [`wisp1`][wisp1] branch.
+
+[wisp1]: https://github.com/takeiteasy/wisp2/tree/wisp1
 
 ## Build
 
@@ -65,3 +68,24 @@ Once built, the node CLI compiles `.wisp` to JavaScript:
 
 [homoiconicity]: http://en.wikipedia.org/wiki/Homoiconicity
 [upstream]: https://github.com/Gozala/wisp
+
+## License
+
+```
+wisp2
+
+Copyright (C) 2025 George Watson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+```
