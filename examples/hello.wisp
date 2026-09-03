@@ -6,7 +6,7 @@
 ;;
 ;; Requires another local module to show off require support.
 
-(def greeter (require "./greeter.wisp"))
+(defvar greeter (require "./greeter.wisp"))
 
 (print (.greet greeter "wisp"))
 (print (apply + [1 2 3 4 5]))

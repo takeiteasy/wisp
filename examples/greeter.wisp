@@ -1,5 +1,4 @@
 (ns demo.greeter)
 
-(defn greet
-  [name]
+(defun greet (name)
   (str "hello, " name))
