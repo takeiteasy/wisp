@@ -1,9 +1,8 @@
 BROWSERIFY = ./node_modules/browserify/bin/cmd.js
-MINIFY = ./node_modules/.bin/minify
 WISP_CURRENT = node ./bin/wisp.js
 FLAGS =
 INSTALL_MESSAGE = "You need to run 'npm install' to install build dependencies."
-BUILD_DEPS = $(BROWSERIFY) $(MINIFY)
+BUILD_DEPS = $(BROWSERIFY)
 # set make's source file search path
 vpath % src
 
@@ -27,7 +26,7 @@ CORE = expander runtime sequence string ast reader compiler analyzer
 core: $(CORE) writer escodegen
 escodegen: escodegen-writer escodegen-generator
 node: core wisp node-engine repl
-browser: node core browser-engine dist/wisp.min.js
+browser: node core browser-engine dist/wisp.js
 all: browser
 
 $(BOOTSTRAP_ENTRY):
@@ -120,10 +119,6 @@ browser-engine: ./engine/browser.js
 dist/wisp.js: engine/browser.js $(WISP) $(BROWSERIFY) browserify.wisp core wisp repl node-engine
 	@mkdir -p dist
 	$(WISP_CURRENT) browserify.wisp > dist/wisp.js
-
-dist/wisp.min.js: dist/wisp.js $(MINIFY)
-	@mkdir -p dist
-	$(MINIFY) dist/wisp.js > dist/wisp.min.js
 
 jsc_bundle.js: src/jsc_bundle.wisp
 
