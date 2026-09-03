@@ -6,7 +6,7 @@
             [wisp.sequence :refer [empty? count list? list first second third
                                    rest cons conj butlast reverse reduce vec
                                    last map mapv filter take concat partition
-                                   repeat interleave assoc]]
+                                   repeat interleave assoc some]]
             [wisp.runtime :refer [odd? dictionary? dictionary merge keys vals
                                   contains-vector? map-dictionary string?
                                   number? vector? boolean? subs re-find true?
@@ -442,19 +442,40 @@
      :body [body]
      :loc (:loc body)}))
 
+(defun contains-await?
+  (node)
+  "True if the emitted JS node tree contains an AwaitExpression.
+Writer-constructed IIFEs (->expression / ->iife) use this to decide
+whether they must be lowered as async: an `await` captured inside a
+plain sync IIFE would leave the enclosing async function's context
+and fail to parse. Nested writer IIFEs already carrying their own
+await wrappers are detected the same way."
+  (cond ((dictionary? node) (or (= :AwaitExpression (:type node))
+                                (some contains-await? (vals node))))
+        ((vector? node) (some contains-await? node))
+        (else nil)))
+
 (defun ->expression
   (&rest body)
-  {:type :CallExpression
-   :arguments []
-   :loc (inherit-location body)
-   :callee (->sequence [{:type :FunctionExpression
-                         :id nil
-                         :params []
-                         :defaults []
-                         :expression false
-                         :generator false
-                         :rest nil
-                         :body (->block body)}])})
+  (let* ((fn {:type :FunctionExpression
+              :id nil
+              :params []
+              :expression false
+              :generator false
+              :body (->block body)})
+        (fn (if (contains-await? fn)
+              ;; async IIFE + await so any await in the body stays
+              ;; valid JS and the IIFE's value flows through
+              (conj fn {:async true})
+              fn))
+        (call {:type :CallExpression
+               :arguments []
+               :loc (inherit-location body)
+               :callee (->sequence [fn])}))
+    (if (:async fn)
+      {:type :AwaitExpression
+       :argument call}
+      call)))
 
 (defun write-do
   (form)
@@ -540,20 +561,27 @@
 
 (defun ->iife
   (body id)
-  {:type :CallExpression
-   :arguments [{:type :ThisExpression}]
-   :callee {:type :MemberExpression
-            :computed false
-            :object {:type :FunctionExpression
-                     :id id
-                     :params []
-                     :defaults []
-                     :expression false
-                     :generator false
-                     :rest nil
-                     :body body}
-            :property {:type :Identifier
-                       :name :call}}})
+  (let* ((fn {:type :FunctionExpression
+              :id id
+              :params []
+              :expression false
+              :generator false
+              :body body})
+        (fn (if (contains-await? body)
+              ;; async IIFE + await -- see ->expression
+              (conj fn {:async true})
+              fn))
+        (call {:type :CallExpression
+               :arguments [{:type :ThisExpression}]
+               :callee {:type :MemberExpression
+                        :computed false
+                        :object fn
+                        :property {:type :Identifier
+                                   :name :call}}}))
+    (if (:async fn)
+      {:type :AwaitExpression
+       :argument call}
+      call)))
 
 (defun ->loop-init
   ()
@@ -823,8 +851,10 @@
     ;; `expression false` selects the block-body form. Regular fns keep
     ;; their optional name; the old SpiderMonkey-only keys (:defaults
     ;; :rest :expression) are gone -- ESTree/escodegen 2.x don't use
-    ;; them.
+    ;; them. :async turns the emitted function (or arrow) into an
+    ;; `async function` / async arrow.
     (conj base
+          {:async (= (:async form) true)}
           (if (:arrow form)
             {:type :ArrowFunctionExpression
              :expression false}
@@ -832,6 +862,12 @@
              :id (if (:id form) (write-var (:id form)))
              :generator false}))))
 (install-writer! :fn write-fn)
+
+(defun write-await
+  (form)
+  {:type :AwaitExpression
+   :argument (write (:argument form))})
+(install-writer! :await write-await)
 
 (defun write
   (form)

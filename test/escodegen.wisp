@@ -589,6 +589,56 @@
 
 
 ;; =>
+;; async / await (#8): async functions/arrows and AwaitExpression
+
+(is (= (transpile "(async (lambda (x) (await x)))")
+"(async function (x) {
+    return await x;
+});") "async marks a lambda")
+
+(is (= (transpile "(async (lambda* (x) (await x)))")
+"async x => {
+    return await x;
+};") "async composes with lambda* into an async arrow")
+
+(is (= (transpile "(defun-async f (x) x)")
+"var f = exports.f = async function f(x) {
+    return x;
+};") "defun-async emits an async function, exported")
+
+(is (= (transpile "(defun-async- hidden (x) x)")
+"var hidden = async function hidden(x) {
+    return x;
+};") "defun-async- is not exported")
+
+(is (= (transpile "(defun-async sum2 (a b) (+ (await a) (await b)))")
+"var sum2 = exports.sum2 = async function sum2(a, b) {
+    return await a + await b;
+};") "await composes inside expressions")
+
+;; await validity is lexical, tracked through nested binding scopes:
+;; a let INSIDE the async fn may await, a nested SYNC fn may not.
+;; The let lowers to an IIFE, which the writer emits as an async IIFE
+;; wrapped in await so the await stays valid JS.
+;; (the gensym'd let subscript depends on suite order -- assert shape)
+(is (re-find #"async function f\(x\) \{\n    return await async function \(\) \{\n        var letBinding\d+ø\d+ = await x;"
+             (transpile "(defun-async f (x) (let ((y (await x))) y))"))
+  "await is valid inside a let within an async fn (async IIFE lowering)")
+
+(is (thrown? (transpile "(defun f (x) (await x))")
+             #"await outside of an async function"))
+(is (thrown? (transpile "(defun-async f (x) (map (lambda (y) (await y)) x))")
+             #"await outside of an async function")
+  "await in a nested non-async fn is rejected, matching JS")
+(is (thrown? (transpile "(async 42)")
+             #"async expects a function form"))
+(is (thrown? (transpile "(defun-async f () (await x y))")
+             #"Malformed await expression"))
+(is (thrown? (transpile "(defun-async f () (await))")
+             #"Malformed await expression"))
+
+
+;; =>
 ;; Conditionals
 
 (is (thrown? (transpile "(if x)")

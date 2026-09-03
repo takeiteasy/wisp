@@ -450,6 +450,19 @@
   "attrs map is optional; nothing is forwarded without it")
 
 
+;; async sugar (#8): lambda-async wraps the `async` special form around
+;; lambda; defun-async(-) is build-defun over lambda-async.
+(is (= (macroexpand-1 '(lambda-async (x) x))
+       '(async (lambda (x) x))))
+(is (= (macroexpand-1 '(lambda-async rec (x) x))
+       '(async (lambda rec (x) x)))
+  "optional name is for self-recursion only")
+(is (= (macroexpand-1 '(defun-async f (x) x))
+       '(defvar f (lambda-async f (x) x))))
+(is (= (macroexpand-1 '(defun-async- f (x) x))
+       '(defvar- f (lambda-async f (x) x))))
+
+
 (is (= (macroexpand-1 '(loop ((foo bar)) baz))
        '(loop* [foo bar] baz)))
 

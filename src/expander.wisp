@@ -468,19 +468,19 @@
 
 
 (defun- build-defun
-  (private &form name params doc+body)
-  "Shared implementation of `defun`/`defun-`: (defvar id (lambda id
-  params* body*)), folding an optional doc-string into the id's
-  metadata so it never reaches the emitted body as a dead expression
-  statement. `private` picks `defvar` vs `defvar-` -- new-syntax has
-  no `^:private` reader metadata, so privacy is now signalled purely
-  by which macro name was used.
+  (private fn-op &form name params doc+body)
+  "Shared implementation of `defun`/`defun-`/`defun-async`/
+`defun-async-`: (defvar id (FN-OP id params* body*)), folding an
+optional doc-string into the id's metadata so it never reaches the
+emitted body as a dead expression statement. `private` picks `defvar`
+vs `defvar-` -- new-syntax has no `^:private` reader metadata, so
+privacy is now signalled purely by which macro name was used.
 
-  Unlike Clojure-wisp's `defn` (name doc? attr-map? [params] body*),
-  new-syntax puts the param list right after the name (Emacs Lisp
-  order): (defun name (params*) doc? body*) -- so the docstring, when
-  present, is the first element of body, not the last element before
-  it."
+Unlike Clojure-wisp's `defn` (name doc? attr-map? [params] body*),
+new-syntax puts the param list right after the name (Emacs Lisp
+order): (defun name (params*) doc? body*) -- so the docstring, when
+present, is the first element of body, not the last element before
+it."
   (let* ((doc (if (and (string? (first doc+body)) (not (empty? (rest doc+body))))
               (first doc+body)))
 
@@ -490,20 +490,20 @@
         ;; Combine the doc metadata and add to a name.
         (id (with-meta name (conj (or (meta name) {}) {:doc doc})))
 
-        (fn (with-meta `(lambda ,id ,params ,@body) (meta &form)))
+        (fn (with-meta `(,fn-op ,id ,params ,@body) (meta &form)))
         (def-op (if private 'defvar- 'defvar)))
     (list def-op id fn)))
 
 (defun expand-defun
   (&form name params &rest doc+body)
   "(defun name (params*) doc? exprs*) => (defvar name (lambda name params* exprs*))"
-  (build-defun false &form name params doc+body))
+  (build-defun false 'lambda &form name params doc+body))
 (install-macro! :defun (with-meta expand-defun {:implicit [:&form]}))
 
 (defun expand-defun-
   (&form name params &rest doc+body)
   "Same as `defun` but not exported (see `build-defun`)."
-  (build-defun true &form name params doc+body))
+  (build-defun true 'lambda &form name params doc+body))
 (install-macro! :defun- (with-meta expand-defun- {:implicit [:&form]}))
 
 (defun expand-defconst
@@ -531,6 +531,34 @@
   "(setf place value) -- assign a place: (setf (.-x o) 1), (setf (aref a i) v)."
   `(set! ,place ,value))
 (install-macro! :setf expand-setf)
+
+
+(defun expand-lambda-async
+  (&rest args)
+  "(lambda-async (params*) exprs*)
+   (lambda-async name (params*) exprs*)
+
+  Async anonymous function: (async (lambda ...)). The name, when
+  given, is only for self-recursion; `await` is valid in the body.
+  For an async ARROW, compose the special form directly:
+  (async (lambda* (params*) ...))."
+  (if (symbol? (first args))
+    `(async (lambda ,(first args) ,@(rest args)))
+    `(async (lambda ,@args))))
+(install-macro! :lambda-async expand-lambda-async)
+
+(defun expand-defun-async
+  (&form name params &rest doc+body)
+  "(defun-async name (params*) doc? exprs*) -- async `defun`;
+  `await` is valid in the body."
+  (build-defun false 'lambda-async &form name params doc+body))
+(install-macro! :defun-async (with-meta expand-defun-async {:implicit [:&form]}))
+
+(defun expand-defun-async-
+  (&form name params &rest doc+body)
+  "Same as `defun-async` but not exported (see `build-defun`)."
+  (build-defun true 'lambda-async &form name params doc+body))
+(install-macro! :defun-async- (with-meta expand-defun-async- {:implicit [:&form]}))
 
 
 (defun expand-lazy-seq

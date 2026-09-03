@@ -487,6 +487,7 @@
         :end      nil
         :variadic nil
         :arrow nil
+        :async nil
         :id       nil
         :methods  [{:op         :overload
                     :form       '([] x)
@@ -504,6 +505,7 @@
         :end      nil
         :variadic nil
         :arrow nil
+        :async nil
         :id       (*id0 'foo)
         :methods  [{:op         :overload
                     :form       '([] x)
@@ -521,6 +523,7 @@
         :end      nil
         :variadic nil
         :arrow nil
+        :async nil
         :id       (*id0 'foo)
         :methods  [{:op         :overload
                     :form       '([a] x)
@@ -538,6 +541,7 @@
         :end      nil
         :variadic nil
         :arrow nil
+        :async nil
         :id       nil
         :methods  [{:op         :overload
                     :form       '([] x)
@@ -555,6 +559,7 @@
         :end      nil
         :variadic true
         :arrow nil
+        :async nil
         :id       nil
         :methods  [{:op         :overload
                     :form       '([& args] x)
@@ -572,6 +577,7 @@
         :end      nil
         :variadic nil
         :arrow nil
+        :async nil
         :id       nil
         :methods  [{:op         :overload
                     :form       '([] 0)
@@ -597,6 +603,7 @@
         :end      nil
         :variadic true
         :arrow nil
+        :async nil
         :id       nil
         :methods  [{:op         :overload
                     :form       '([] 0)

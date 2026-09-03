@@ -444,6 +444,25 @@ function — the shape plugin hosts like cordis expect:
 ; handler.inject = [logger] and handler.name = "my-handler"
 ```
 
+#### Async and await
+
+`defun-async` defines an async function; `await` unwraps a promise inside
+it. `lambda-async` is the anonymous form, and `async` composes with
+`lambda*` for an async arrow:
+
+```lisp
+(defun-async fetch-length (s)
+  (.-length (await (js/fetch s))))
+
+(defvar fetch-async (async (lambda* (s) (await (js/fetch s)))))
+```
+
+`await` is valid only lexically inside an async function — a stray `await`
+is a compile error, not invalid JavaScript. Binding scopes that lower to
+IIFEs (`let` / `progn` / `try` in expression position) keep the async
+context: the compiler emits them as async IIFEs wrapped in `await` when
+they capture an `await`.
+
 #### Arguments
 
 An argument that follows `&rest` captures the remaining arguments as a

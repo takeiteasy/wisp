@@ -659,14 +659,17 @@
                 (with-binding (sub-env env) binding)
                 (sub-env env)))
 
-        ;; lambda* (arrow) marker: injected as `:arrow` metadata on the
-        ;; (fn* ...) form by the lambda* macro. The NODE carries the raw
+        ;; lambda* (arrow) / async markers: injected as `:arrow` /
+        ;; `:async` metadata on the (fn* ...) form by the lambda*
+        ;; macro and the `async` special form. The NODE carries the raw
         ;; marker (nil/true, like :variadic); the scope env gets an
-        ;; explicit boolean so a nested non-arrow fn resets the flag
-        ;; instead of inheriting it from an enclosing arrow scope.
+        ;; explicit boolean so a nested non-async/non-arrow fn resets
+        ;; the flag instead of inheriting it from the enclosing scope.
         (arrow (= (:arrow (meta form)) true))
+        (async (= (:async (meta form)) true))
 
-        (scope (conj scope {:arrow arrow}))
+        (scope (conj scope {:arrow arrow
+                            :async async}))
 
         (methods (map (lambda (%) (analyze-fn-method scope %))
                      (vec overloads)))
@@ -684,11 +687,45 @@
     {:op :fn
      :type :function
      :arrow (if arrow true nil)
+     :async (if async true nil)
      :id binding
      :variadic variadic
      :methods methods
      :form form}))
 (install-special! :fn* analyze-fn)
+
+(defun analyze-async
+  (env form)
+  "`async` marks a function form as async: (async (lambda ...)) or
+  (async (lambda* ...)) — the async arrow composition. The inner form
+  is macroexpanded first (so lambda-async-style sugar expands), then
+  must head-expand to fn*; the :async marker rides its metadata into
+  analyze-fn, which turns on await validity for that fn's scope and
+  makes the backend emit an async function."
+  (let* ((inner (macroexpand (second form) env)))
+    (if (or (not (list? inner))
+            (empty? inner)
+            (not (identical? (name (first inner)) "fn*")))
+      (syntax-error "async expects a function form, e.g. (async (lambda (x) ...))" form)
+      (analyze env (with-meta inner (conj (or (meta inner) {}) {:async true}))))))
+(install-special! :async analyze-async)
+
+(defun analyze-await
+  (env form)
+  "`await` unwraps a promise: (await expr) => AwaitExpression. It is
+  valid only lexically inside an async function — :async on the scope
+  env, set by analyze-fn and propagated through sub-env — so a stray
+  await is a clean compile error instead of invalid JS. (An await
+  inside a nested non-async fn is rejected the same way, matching JS.)"
+  (if (not (:async env))
+    (syntax-error "await outside of an async function" form))
+  (let* ((expressions (rest form)))
+    (if (not (identical? (count expressions) 1))
+      (syntax-error "Malformed await expression, expecting (await expr)" form))
+    {:op :await
+     :form form
+     :argument (analyze env (first expressions))}))
+(install-special! :await analyze-await)
 
 (defun parse-references
   (forms)

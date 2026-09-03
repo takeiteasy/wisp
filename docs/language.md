@@ -4,9 +4,8 @@
 > JavaScript. The compiler self-hosts it: the reader/expander/analyzer
 > grammar, the `nil` singleton runtime, the standard library, and the
 > `stage-0` bootstrap seed all speak this dialect. The arrow form
-> (`lambda*` / `defplugin`) is implemented; async/await (`defun-async`,
-> `lambda-async`, `async`, `await`) is specified below and planned — see
-> the tracker for its status. The tutorial reference lives in
+> (`lambda*` / `defplugin`) and async/await (`defun-async`, `lambda-async`,
+> `async`, `await`) are implemented. The tutorial reference lives in
 > [language-essentials.md](language-essentials.md).
 
 ## Why
@@ -100,8 +99,11 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 (lambda* (params…) body…)          ; ARROW function — no .prototype, no this/arguments
 (defplugin name attrs? (ctx config) body…)   ; arrow plugin + forwarded metadata
 
-(defun-async  name (params…) body…); async function                                       (planned)
-(lambda-async (params…) body…)     ; async anonymous function                             (planned)
+(defun-async  name (params…) body…); async function
+(defun-async- name (params…) body…); same, not exported
+(lambda-async (params…) body…)     ; async anonymous function
+(async fn-form)                    ; marks a fn form async — composes with lambda*
+(await expr)                       ; only valid lexically inside an async function
 ```
 
 - `lambda` compiles to a **named `function` expression** — keeps `this`,
@@ -127,6 +129,14 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
   `provide`, …). The assignments run inside the `defvar` init, so the plugin
   stays a single top-level definition with the same export semantics as
   `defun`.
+- `async` wraps a **function form** — `(async (lambda …))`, `(async
+  (lambda* …))` for an async arrow; the sugar `lambda-async` /
+  `defun-async` / `defun-async-` expand to it. `await` is valid only
+  lexically inside an async function — a stray `(await …)` (including one
+  inside a nested non-async fn) is a clean compile error, matching JS.
+  Binding scopes that lower to IIFEs (`let`/`progn`/`try`/`loop` in
+  expression position) are emitted as **async IIFEs wrapped in `await`**
+  when they capture an `await`, so the enclosing async context is preserved.
 
 ### binding and places
 
@@ -164,9 +174,9 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 ```
 (quote x)   `x   ,x   ,@x
 (defmacro name (params…) body…)
-(async expr)                        ; expr as an async IIFE / marks the enclosing fn   (planned)
-(await expr)                        ; only valid lexically inside an async function    (planned)
 ```
+
+`async` / `await` are special forms — see *defining* above.
 
 ### kept for v1 (revisit later)
 

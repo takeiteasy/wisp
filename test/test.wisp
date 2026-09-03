@@ -8,4 +8,5 @@
             wisp.test.escodegen
             wisp.test.protocols
             wisp.test.analyzer
-            wisp.test.macros))
+            wisp.test.macros
+            wisp.test.async))
