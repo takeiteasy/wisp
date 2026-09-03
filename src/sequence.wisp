@@ -269,6 +269,16 @@
         ((lazy-seq? sequence) (rest (lazy-seq-value sequence)))
         (else (rest (seq sequence)))))
 
+(defun car
+  (sequence)
+  "Alias for `first` -- the traditional-Lisp spelling; (car nil) is nil"
+  (first sequence))
+
+(defun cdr
+  (sequence)
+  "Alias for `rest` -- the traditional-Lisp spelling; (cdr nil) is nil"
+  (rest sequence))
+
 (defun- last-of-list
   (list)
   (loop ((item (first list))

@@ -8,7 +8,7 @@
                                        interleave nth lazy-seq set identity-set identity-set?
                                        contains? union difference intersection subset? superset?
                                        unfold iterate cycle infinite-range lazy-map lazy-filter
-                                       lazy-concat lazy-partition run! dorun doall]]
+                                       lazy-concat lazy-partition run! dorun doall car cdr]]
             [wisp.runtime :refer [str int inc dec even? odd? number? set? vals + =]]))
 
 
@@ -55,6 +55,15 @@
 (is (= (first '(\a \b \c)) \a))
 (is (= (first {}) nil))
 (is (= (first {:a 1 :b 2}) [:a 1]))
+
+
+(is (= (car nil) nil) "car nil-puns like first")
+(is (= (car [1 2 3]) 1))
+(is (= (car '(\a \b)) \a))
+
+(is (= (cdr nil) nil) "cdr nil-puns like rest")
+(is (= (cdr [1 2 3]) [2 3]))
+(is (= (cdr '(1)) nil))
 
 
 (is (= (second nil) nil))

@@ -920,7 +920,7 @@
 (install-binary-operator! :bit-xor :^)
 (install-binary-operator! :bit-shift-left :<<)
 (install-binary-operator! :bit-shift-right :>>)
-(install-binary-operator! :bit-shift-right-zero-fil :>>>)
+(install-binary-operator! :bit-shift-right-zero-fill :>>>)
 
 ;; Arithmetic operators
 
