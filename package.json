@@ -27,12 +27,7 @@
   "bugs": {
     "url": "https://todo.sr.ht/~takeiteasy/wisp/"
   },
-  "licenses": [
-    {
-      "type": "BSD New",
-      "url": "http://opensource.org/licenses/BSD-3-Clause"
-    }
-  ],
+  "license": "GPL-3.0-or-later",
   "devDependencies": {
     "browserify": "16.5.0"
   },
