@@ -5,6 +5,14 @@
 #
 # Does NOT push. It prints the push command at the end.
 #
+# SEED_ENTRY overrides the compiler used to produce the payload. Default is
+# the repo's own freshly built compiler (root ./compiler.js, as `make`
+# builds it). When that cannot exist yet -- e.g. seeding the first
+# new-syntax stage-0 on the `new-syntax` branch, where the checked-in
+# stage-0 cannot read src/ at all -- point it at a transitional compiler:
+#
+#   SEED_ENTRY=transitional/wisp-bootstrap.js ./scripts/refresh-stage-0.sh
+#
 # One fresh `node` process per file (process-global gensym counter).
 set -eu
 
@@ -30,8 +38,12 @@ git archive "$BOOTSTRAP_REF" | tar -x -C "$PREV"
 echo "compiling src/*.wisp with the repo's own compiler..."
 for m in $MODULES; do
   mkdir -p "$PAYLOAD/$(dirname "$m")"
-  node -e 'var c=require("./compiler"),fs=require("fs");var o=c.compile(fs.readFileSync(process.argv[1],"utf8"),{"source-uri":process.argv[2]});if(o.error)throw o.error;process.stdout.write(o.code)' \
-    "src/$m.wisp" "wisp/$m.wisp" > "$PAYLOAD/$m.js"
+  if [ -n "${SEED_ENTRY:-}" ]; then
+    node "$SEED_ENTRY" --source-uri "wisp/$m.wisp" < "src/$m.wisp" > "$PAYLOAD/$m.js"
+  else
+    node -e 'var c=require("./compiler"),fs=require("fs");var o=c.compile(fs.readFileSync(process.argv[1],"utf8"),{"source-uri":process.argv[2]});if(o.error)throw o.error;process.stdout.write(o.code)' \
+      "src/$m.wisp" "wisp/$m.wisp" > "$PAYLOAD/$m.js"
+  fi
 done
 mkdir -p "$PAYLOAD/bin"
 cp bin/wisp.js "$PAYLOAD/bin/wisp.js"
