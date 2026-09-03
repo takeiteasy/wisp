@@ -866,6 +866,97 @@
           `(fn* ,argv ,@body*))))))
 (install-macro! :lambda expand-lambda)
 
+(defun expand-lambda*
+  (&rest args)
+  "(lambda* (params*) exprs*)
+
+  The arrow-function form: compiles to an anonymous
+  ArrowFunctionExpression, which carries no `.prototype` -- host
+  systems that classify any .prototype-bearing function as a class
+  (e.g. cordis's isConstructor) stop misreading these as constructors,
+  so a returned disposer keeps its teardown.
+
+  Arrows are anonymous: no name, no `this` / `arguments` /
+  named self-recursion in the body (the analyzer rejects unresolved
+  references). `&optional` defaults are supported (they lower to body
+  statements); `&rest` is rejected because the variadic lowering
+  slices `arguments`, which arrows do not have. Multi-arity clauses
+  are rejected, same as `lambda`."
+  (cond ((symbol? (first args))
+         (throw (Error "lambda* does not support a name -- arrows are anonymous")))
+        ((and (list? (first args))
+              (list? (first (first args))))
+         (throw (Error (str "lambda*: multi-arity clauses are not supported -- "
+                            "use &optional (or lambda) instead"))))
+        (else
+         (let* ((params (first args))
+               (body (rest args))
+               (parsed (parse-arglist params))
+               (names (:names parsed)))
+           (if (some (lambda (%) (= '& %)) names)
+             (throw (Error (str "lambda* does not support &rest -- the variadic "
+                                "lowering slices `arguments`, which arrows lack")))
+             (let* ((indices (bind-indices* names))
+                   (binds (bind-names* indices))
+                   (argv (vec (map-indexed (lambda (%1 %2) (get binds %1 %2)) names)))
+                   (destructuring (if (empty? binds)
+                                   []
+                                   [`(let** ,(destructure (vec (mapcat (lambda (i) [(nth names i) (get binds i)])
+                                                                       indices)))
+                                       ,@body)]))
+                   (defaulting (map (lambda (d) `(if (nil? ,(first d)) (set! ,(first d) ,(second d))))
+                                   (:defaults parsed)))
+                   (body* (if (empty? destructuring)
+                           (concat defaulting body)
+                           (concat defaulting destructuring))))
+               ;; The :arrow marker rides the (fn* ...) form's metadata
+               ;; into analyze-fn, which threads it onto the AST node
+               ;; (and the scope env) for the backend.
+               (with-meta `(fn* ,argv ,@body*) {:arrow true})))))))
+(install-macro! :lambda* expand-lambda*)
+
+(defun expand-defplugin
+  (id &rest more)
+  "(defplugin id attrs? (params*) exprs*)
+
+  Defines ID as an arrow-function plugin:
+  (defvar id (lambda* (params*) exprs*)) with each pair of the
+  optional attrs map forwarded onto the function via
+  Object.defineProperty:
+
+  (defplugin handler {:inject [a b]} (ctx config) ...)
+  => (defvar handler ((lambda (plugin-gensym)
+                        (Object.defineProperty plugin-gensym \"inject\"
+                          {:value [a b] :writable true :enumerable true :configurable true})
+                        plugin-gensym)
+                      (lambda* (ctx config) ...)))
+
+  defineProperty (not plain assignment) is used because the
+  function's own `name` (and `length`) properties are non-writable
+  and a silent no-op otherwise. The assignments run inside the
+  defvar init so the plugin stays a single top-level definition
+  (exports semantics identical to `defun`). Any metadata key
+  forwards (inject, name, Config, provide, ...). The arrow emit
+  carries no .prototype, so plugin hosts cannot misread the plugin
+  as a class and drop a returned disposer."
+  (let* ((attrs (if (dictionary? (first more)) (first more) {}))
+        (defn-forms (if (dictionary? (first more)) (rest more) more))
+        (params (first defn-forms))
+        (body (rest defn-forms))
+        (plugin (gensym "plugin"))
+        (forwarding (map (lambda (k)
+                           `(.defineProperty js/Object ,plugin ,(name k)
+                                             {:value ,(get attrs k)
+                                              :writable true
+                                              :enumerable true
+                                              :configurable true}))
+                         (keys attrs))))
+    `(defvar ,id ((lambda (,plugin)
+                    ,@forwarding
+                    ,plugin)
+                  (lambda* ,params ,@body)))))
+(install-macro! :defplugin expand-defplugin)
+
 (defun expand-loop
   (bindings &rest body)
   "Evaluates the exprs in a lexical context in which the symbols in

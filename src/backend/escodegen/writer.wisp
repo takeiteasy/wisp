@@ -817,15 +817,20 @@
 (defun write-fn
   (form)
   (let* ((base (if (> (count (:methods form)) 1)
-               (write-overloading-fn form)
-               (write-simple-fn form))))
+                (write-overloading-fn form)
+                (write-simple-fn form))))
+    ;; Arrows (lambda*) are anonymous by construction: :id is nil and
+    ;; `expression false` selects the block-body form. Regular fns keep
+    ;; their optional name; the old SpiderMonkey-only keys (:defaults
+    ;; :rest :expression) are gone -- ESTree/escodegen 2.x don't use
+    ;; them.
     (conj base
-          {:type :FunctionExpression
-           :id (if (:id form) (write-var (:id form)))
-           :defaults nil
-           :rest nil
-           :generator false
-           :expression false})))
+          (if (:arrow form)
+            {:type :ArrowFunctionExpression
+             :expression false}
+            {:type :FunctionExpression
+             :id (if (:id form) (write-var (:id form)))
+             :generator false}))))
 (install-writer! :fn write-fn)
 
 (defun write

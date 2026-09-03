@@ -4,8 +4,9 @@
 > JavaScript. The compiler self-hosts it: the reader/expander/analyzer
 > grammar, the `nil` singleton runtime, the standard library, and the
 > `stage-0` bootstrap seed all speak this dialect. The arrow form
-> (`lambda*` / `defplugin`) and async/await are specified below and planned;
-> see the tracker for their status. The tutorial reference lives in
+> (`lambda*` / `defplugin`) is implemented; async/await (`defun-async`,
+> `lambda-async`, `async`, `await`) is specified below and planned — see
+> the tracker for its status. The tutorial reference lives in
 > [language-essentials.md](language-essentials.md).
 
 ## Why
@@ -96,8 +97,8 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 (defun- name (params…) body…)      ; same, not exported
 (lambda (params…) body…)           ; anonymous function expression
 (lambda name (params…) body…)      ; named, for self-recursion
-(lambda* (params…) body…)          ; ARROW function — no .prototype, no this/arguments   (planned)
-(defplugin name (ctx config) body…); macro → (defvar name (lambda* (ctx config) body…)) + plugin metadata   (planned)
+(lambda* (params…) body…)          ; ARROW function — no .prototype, no this/arguments
+(defplugin name attrs? (ctx config) body…)   ; arrow plugin + forwarded metadata
 
 (defun-async  name (params…) body…); async function                                       (planned)
 (lambda-async (params…) body…)     ; async anonymous function                             (planned)
@@ -106,9 +107,26 @@ only (they mangle to `__earmuffed__`), not a `defvar`-creates-a-special rule.
 - `lambda` compiles to a **named `function` expression** — keeps `this`,
   `arguments`, and named self-recursion.
 - `lambda*` compiles to an **`ArrowFunctionExpression`** — has no
-  `.prototype`, so cordis's `isConstructor()` stops misfiring on plugins. Its
-  body may not use `this` / `arguments` / named self-recursion.
-- `lambda*` spelling is not final (`=>` is the alternative under discussion).
+  `.prototype`, so host systems that classify any `.prototype`-bearing
+  function as a class (e.g. cordis's `isConstructor()`) stop misfiring, and a
+  returned disposer keeps its teardown. Arrows are anonymous: no name, no
+  `this` / `arguments` / named self-recursion — an unresolved reference to
+  either is a compile error (a param or outer local may legitimately shadow).
+  `&optional` defaults are supported; `&rest` is not (the variadic lowering
+  slices `arguments`, which arrows lack).
+- `defplugin` is `(defvar name (lambda* (ctx config) body…))` plus forwarding
+  of the optional attrs map onto the function via `Object.defineProperty`:
+
+  ```lisp
+  (defplugin handler {:inject [a b] :name "my-plugin"} (ctx config) …)
+  ```
+
+  `defineProperty` (not plain assignment) is used because a function's own
+  `name`/`length` properties are non-writable and a plain assignment would
+  silently no-op. Any metadata key forwards (`inject`, `name`, `Config`,
+  `provide`, …). The assignments run inside the `defvar` init, so the plugin
+  stays a single top-level definition with the same export semantics as
+  `defun`.
 
 ### binding and places
 

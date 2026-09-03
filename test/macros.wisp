@@ -411,6 +411,45 @@
        '(fn* name [foo bar] baz)))
 
 
+;; lambda* -- the arrow form (#7): lowers to fn* carrying an :arrow
+;; marker in the form's metadata (invisible to `=`), which the analyzer
+;; threads onto the AST node and the backend emits as
+;; ArrowFunctionExpression. Arrows are anonymous and reject &rest --
+;; the variadic lowering slices `arguments`, which arrows lack.
+(is (= (macroexpand-1 '(lambda* (foo bar) baz))
+       '(fn* [foo bar] baz)))
+(is (= (macroexpand-1 '(lambda* (&optional (x 10)) x))
+       '(fn* [x] (if (nil? x) (set! x 10)) x))
+  "&optional defaults lower to body statements, arrow-compatible")
+(is (thrown? (macroexpand-1 '(lambda* name (x) x))
+             #"arrows are anonymous"))
+(is (thrown? (macroexpand-1 '(lambda* ((a) 1) ((a b) 2)))
+             #"multi-arity"))
+(is (thrown? (macroexpand-1 '(lambda* (a &rest more) a))
+             #"&rest"))
+
+
+;; defplugin (#7): defvar + lambda*, with the attrs map forwarded onto
+;; the function via Object.defineProperty inside the defvar init (a
+;; function's own `name`/`length` properties are non-writable, so a
+;; plain assignment would silently no-op). One top-level definition --
+;; no progn/IIFE scoping surprise.
+(is (*= (macroexpand-1 '(defplugin plug {:inject [a]} (ctx config) ctx))
+        '(defvar plug ((lambda (plugin#)
+                         (.defineProperty js/Object plugin# "inject"
+                                          {:value [a]
+                                           :writable true
+                                           :enumerable true
+                                           :configurable true})
+                         plugin#)
+                       (lambda* (ctx config) ctx)))))
+(is (*= (macroexpand-1 '(defplugin plug (ctx config) ctx))
+        '(defvar plug ((lambda (plugin#)
+                        plugin#)
+                      (lambda* (ctx config) ctx))))
+  "attrs map is optional; nothing is forwarded without it")
+
+
 (is (= (macroexpand-1 '(loop ((foo bar)) baz))
        '(loop* [foo bar] baz)))
 

@@ -419,6 +419,31 @@ Most functions are defined with `defun`, which also accepts a docstring:
   (+ x 1))
 ```
 
+`lambda*` is the arrow-function form — it compiles to a JavaScript arrow
+(`x => { … }`) instead of a `function` expression:
+
+```lisp
+(lambda* (x) (* x 2)) ; => x => { return x * 2; }
+```
+
+Arrows carry no `.prototype`, so hosts that treat any `.prototype`-bearing
+function as a class (constructor) cannot misread them. In exchange, an arrow
+has no own `this` or `arguments`, cannot be named for self-recursion, and
+does not support `&rest` — referencing `this`/`arguments` that do not resolve
+to a real binding is a compile error.
+
+`defplugin` defines an arrow plugin whose metadata map is attached to the
+function — the shape plugin hosts like cordis expect:
+
+```lisp
+(defplugin handler
+  {:inject [logger] :name "my-handler"}
+  (ctx config)
+  (…))
+; logger and config arrive via dependency injection; the function carries
+; handler.inject = [logger] and handler.name = "my-handler"
+```
+
 #### Arguments
 
 An argument that follows `&rest` captures the remaining arguments as a

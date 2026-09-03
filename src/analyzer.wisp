@@ -251,11 +251,26 @@
                 :form form})))
 (install-special! :progn analyze-do)
 
+(defun check-arrow-restriction
+  (env form)
+  "lambda* (arrow) bodies have no own `this` / `arguments`. An
+  unresolved bare reference to either inside an arrow would silently
+  capture the enclosing scope's binding (or throw at runtime), so it
+  is rejected up front. A reference that resolves to a real binding
+  (a param or an outer local) is legitimate shadowing and passes."
+  (if (and (:arrow env)
+         (or (identical? (name form) "this")
+             (identical? (name form) "arguments"))
+         (= :unresolved-binding (:op (resolve-binding env form))))
+    (syntax-error (str "lambda* body may not reference " (name form)
+                       " -- arrows have no own this/arguments") form)))
+
 (defun analyze-symbol
   (env form)
   "Symbol analyzer also does syntax desugaring for the symbols
   like foo.bar.baz producing (aget foo 'bar.baz) form. This enables
   renaming of shadowed symbols."
+  (check-arrow-restriction env form)
   (let* ((forms (split (name form) \.))
         (metadata (meta form))
         (start (:start metadata))
@@ -359,7 +374,13 @@
                    (:locals env))
    :locals {}
    :bindings []
-   :params (or (:params env) [])})
+   :params (or (:params env) [])
+   ;; Scope flags that survive nested binding scopes (let/try/fn
+   ;; bodies) but are explicitly reset at every fn boundary by
+   ;; analyze-fn. :arrow gates the lambda* `this`/`arguments`
+   ;; restriction; :async gates `await` validity.
+   :arrow (= (:arrow env) true)
+   :async (= (:async env) true)})
 
 
 (defun analyze-let*
@@ -638,13 +659,31 @@
                 (with-binding (sub-env env) binding)
                 (sub-env env)))
 
+        ;; lambda* (arrow) marker: injected as `:arrow` metadata on the
+        ;; (fn* ...) form by the lambda* macro. The NODE carries the raw
+        ;; marker (nil/true, like :variadic); the scope env gets an
+        ;; explicit boolean so a nested non-arrow fn resets the flag
+        ;; instead of inheriting it from an enclosing arrow scope.
+        (arrow (= (:arrow (meta form)) true))
+
+        (scope (conj scope {:arrow arrow}))
+
         (methods (map (lambda (%) (analyze-fn-method scope %))
                      (vec overloads)))
 
         (arity (apply max (map (lambda (%) (:arity %)) methods)))
         (variadic (some (lambda (%) (:variadic %)) methods)))
+
+    ;; The arity-dispatch lowering for overloaded fns reads
+    ;; `arguments`, which arrows do not have. lambda* rejects
+    ;; multi-arity clauses at expansion time; this guards direct use.
+    (if (and arrow
+           (> (count methods) 1))
+      (syntax-error "lambda* does not support arity overloading" form))
+
     {:op :fn
      :type :function
+     :arrow (if arrow true nil)
      :id binding
      :variadic variadic
      :methods methods

@@ -535,6 +535,60 @@
 
 
 ;; =>
+;; lambda* -- the arrow form (#7): ArrowFunctionExpression, no
+;; .prototype, no name.
+
+(is (= (transpile "(lambda* (x) (+ x 1))")
+"x => {
+    return x + 1;
+};") "single-param arrow emits without parens")
+
+(is (= (transpile "(lambda* () :ok)")
+"() => {
+    return 'ok';
+};") "zero-param arrow")
+
+(is (= (transpile "(lambda* (a b) (foo a) b)")
+"(a, b) => {
+    foo(a);
+    return b;
+};") "multi-param arrow")
+
+(is (= (transpile "(lambda* (a &optional (b 10)) (+ a b))")
+"(a, b) => {
+    isNil(b) ? b = 10 : null;
+    return a + b;
+};") "&optional defaults lower to body statements in arrows too")
+
+(is (thrown? (transpile "(lambda* () this)")
+             #"lambda\* body may not reference this"))
+(is (thrown? (transpile "(lambda* () (foo arguments))")
+             #"lambda\* body may not reference arguments"))
+;; a param or outer local legitimately shadows; only unresolved
+;; references are the arrow restriction
+(is (= (transpile "(lambda* (arguments) arguments)")
+"arguments => {
+    return arguments;
+};") "shadowing params are fine")
+
+;; defplugin (#7): defvar + lambda* + metadata forwarding. The gensym'd
+;; init param depends on suite order, so assert on the emitted shape.
+(defvar *defplugin-js (transpile "(defplugin plug {:inject [a]} (ctx) ctx)"))
+(is (re-find #"var plug = exports\.plug = function \(plugin\d+\) \{" *defplugin-js)
+  "single top-level definition")
+(is (re-find #"Object\.defineProperty\(plugin\d+, 'inject', \{" *defplugin-js)
+  "attrs forwarded via defineProperty (function `name` is non-writable)")
+(is (re-find #"\(ctx => \{\n    return ctx;\n\}\)" *defplugin-js)
+  "plugin body is an arrow expression -- no .prototype")
+(is (not (re-find #"function plug\(" *defplugin-js))
+  "the plugin itself carries no name (hence no .prototype)")
+
+(is (re-find #"return plugin\d+;\s*\}\(ctx => \{" 
+             (transpile "(defplugin plug (ctx) ctx)"))
+  "defplugin without attrs forwards nothing")
+
+
+;; =>
 ;; Conditionals
 
 (is (thrown? (transpile "(if x)")
