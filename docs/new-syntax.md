@@ -1,11 +1,12 @@
 # new-syntax — the traditional-Lisp dialect (design spec)
 
-> **Status: design only.** Nothing here is implemented. The compiler today
-> speaks the Clojure-flavoured syntax documented elsewhere; this file is the
-> agreed target for a divergence toward a small Emacs-Lisp-style dialect.
-> Tracked in the tracker: the RFC, the spec task, and the two codegen
-> follow-ups (arrow form, async/await). When the rewrite lands this file
-> becomes `docs/language.md`.
+> **Status: implemented on the `new-syntax` branch.** The compiler self-hosts
+> this dialect there: reader/expander/analyzer grammar, the nil singleton
+> runtime, the full `src/` + `test/` rewrite, and the transitional bootstrap
+> with a re-seeded (not yet pushed) stage-0. Still open: the arrow form
+> (`lambda*` / `defplugin`) and async/await, tracked separately. When the
+> branch merges, this file becomes `docs/language.md` and the master docs,
+> examples and README are rewritten.
 
 ## Why
 
