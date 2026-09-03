@@ -42,6 +42,14 @@
 #   baseline from a different point -- normally you never touch it once
 #   a file has crossed over.
 #
+# BASELINE_ONLY=1 stops after stage 1b, emitting the strict hybrid compiler
+# the Phase 4 fixpoint check seeds from: stage-0's compiled compiler.js /
+# writers / engines untouched, with only reader / expander / analyzer /
+# runtime swapped for their Phase 1/2 builds (see ticket "new-syntax Phase
+# 4"). Without it the script runs stage 2 as well, ending at the fully
+# new-syntax-compiled transitional/ used for per-file compile verification
+# during Phase 3.
+#
 # set -e: any compile error aborts the rebuild rather than silently
 # leaving a stale or half-updated transitional/ in place.
 set -euo pipefail
@@ -54,6 +62,12 @@ trap 'rm -rf "$TMP"' EXIT
 rm -rf transitional
 mkdir -p transitional/backend/escodegen transitional/backend/javascript transitional/engine transitional/bin
 cp bin/wisp.js transitional/bin/wisp.js
+
+# The stdin-driven entry shim from the stage-0 payload, dropped at the root of
+# transitional/ next to the compiled modules. With it, transitional/ doubles as
+# a bootstrap-check seed: node transitional/wisp-bootstrap.js (see
+# scripts/bootstrap-check.sh SEED_ENTRY).
+git show stage-0:wisp-bootstrap.js > transitional/wisp-bootstrap.js
 
 # path relative to src/, without .wisp extension
 OLD_SYNTAX_FILES=(
@@ -127,6 +141,11 @@ if guard not in src:
 PYEOF
 
 echo "== stage 2: new-syntax files, current src/, via the transitional compiler (dependency order) =="
+if [ "${BASELINE_ONLY:-0}" = "1" ]; then
+  echo "BASELINE_ONLY=1 -- stopping after stage 1b (strict hybrid seed)."
+  echo "transitional/ rebuilt at the stage-1b baseline."
+  exit 0
+fi
 for entry in "${NEW_SYNTAX_FILES[@]}"; do
   f="${entry%%:*}"
   echo "  $f.wisp"
